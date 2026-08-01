@@ -3,3 +3,4 @@ export * from "./garnison.js";
 export * from "./grade.js";
 export * from "./forge.js";
 export * from "./ordre.js";
+export * from "./campagne.js";

@@ -1,0 +1,79 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`executerCampagne — mélange représentatif > 30 jours, graine 42, snapshot stable 1`] = `
+{
+  "blesses_au_centre": {
+    "maximum": 0,
+    "minimum": 0,
+    "moyenne": 0,
+  },
+  "blesses_au_centre_serie": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  ],
+  "blessures_totales": {
+    "grave": 0,
+    "legere": 0,
+    "serieuse": 0,
+  },
+  "doctrines_actives": [
+    "ecorcheurs",
+    "rouleau",
+    "serpent",
+  ],
+  "equipements_detruits": 0,
+  "jour_chute": null,
+  "lieux_tenus_fin_acte": {
+    "acte_1": 25,
+    "acte_2": 25,
+    "acte_3": 25,
+  },
+  "premier_choix": [
+    {
+      "doctrine": "ecorcheurs",
+      "taux": 0.2962962962962963,
+      "tours": 27,
+    },
+    {
+      "doctrine": "rouleau",
+      "taux": 0.25925925925925924,
+      "tours": 27,
+    },
+    {
+      "doctrine": "serpent",
+      "taux": 0.4444444444444444,
+      "tours": 27,
+    },
+  ],
+  "resultat": "tenue",
+  "usure_consommee": 48,
+}
+`;

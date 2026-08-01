@@ -45,6 +45,10 @@ export interface Balance {
   readonly grades: {
     readonly seuils_effectif: Record<"caporal" | "sergent" | "capitaine" | "general", number>;
     readonly conditions_reserve: Record<"caporal" | "sergent" | "capitaine" | "general", number>;
+    readonly effectif_commande: Record<
+      "recrue" | "soldat" | "caporal" | "sergent" | "capitaine" | "general",
+      number
+    >;
     readonly coordination: Record<
       "recrue" | "soldat" | "caporal" | "sergent" | "capitaine" | "general",
       number
@@ -104,6 +108,7 @@ export interface Balance {
     readonly rendement_auto_production_veteran: number;
     readonly usure_batailles_neuf: number;
     readonly usure_batailles_apres_demobilisation: number;
+    readonly reparation_batailles_rendues: number;
     readonly cout_reparation_ratio: number;
     readonly matieres_par_province_tenue_par_jour: number;
     readonly rendement_atelier: number;
@@ -198,6 +203,14 @@ export const SCHEMA: SchemaNoeud = {
       capitaine: "number",
       general: "number",
     },
+    effectif_commande: {
+      recrue: "number",
+      soldat: "number",
+      caporal: "number",
+      sergent: "number",
+      capitaine: "number",
+      general: "number",
+    },
     coordination: {
       recrue: "number",
       soldat: "number",
@@ -283,6 +296,7 @@ export const SCHEMA: SchemaNoeud = {
     rendement_auto_production_veteran: "number",
     usure_batailles_neuf: "number",
     usure_batailles_apres_demobilisation: "number",
+    reparation_batailles_rendues: "number",
     cout_reparation_ratio: "number",
     matieres_par_province_tenue_par_jour: "number",
     rendement_atelier: "number",

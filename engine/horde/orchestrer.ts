@@ -44,11 +44,28 @@ export interface EntreeJourHorde {
   readonly config: Balance;
 }
 
+/**
+ * Instrumentation du draft, un enregistrement par doctrine active du jour
+ * ORDINAIRE (les jours d'offensive n'ont pas de draft — vide).
+ */
+export interface PremierChoixDoctrine {
+  readonly doctrine: NomDoctrine;
+  /** Le lieu que la doctrine aurait choisi si elle avait pioché en premier. */
+  readonly premier_ideal: LieuId;
+  /** Vrai si la doctrine a obtenu ce lieu ; faux si un concurrent l'a pris avant. */
+  readonly obtenu: boolean;
+}
+
 export interface SortieJourHorde {
   readonly vagues: readonly Vague[];
   /** Doctrines effectivement à la manœuvre ce jour (une liste par vague). */
   readonly doctrines_par_vague: readonly NomDoctrine[];
   readonly est_offensive: boolean;
+  /**
+   * Diagnostic pour la simulation : vérifie que chaque doctrine reste
+   * reconnaissable. Vide les jours d'offensive.
+   */
+  readonly premier_choix_par_doctrine: readonly PremierChoixDoctrine[];
 }
 
 const JOURS_OFFENSIVE: readonly number[] = [10, 20, 30];
@@ -66,13 +83,23 @@ export function orchestrerJour(entree: EntreeJourHorde): SortieJourHorde {
     entree.province.entrees,
   );
   if (exposes.length === 0) {
-    return { vagues: [], doctrines_par_vague: [], est_offensive: false };
+    return {
+      vagues: [],
+      doctrines_par_vague: [],
+      est_offensive: false,
+      premier_choix_par_doctrine: [],
+    };
   }
 
   const doctrinesActives =
     entree.doctrines_actives ?? tirerDoctrinesLune(entree.graine_lune, config);
   if (doctrinesActives.length === 0) {
-    return { vagues: [], doctrines_par_vague: [], est_offensive: false };
+    return {
+      vagues: [],
+      doctrines_par_vague: [],
+      est_offensive: false,
+      premier_choix_par_doctrine: [],
+    };
   }
 
   const estOffensive = JOURS_OFFENSIVE.includes(entree.jour);
@@ -108,11 +135,26 @@ export function orchestrerJour(entree: EntreeJourHorde): SortieJourHorde {
       vagues,
       doctrines_par_vague: vagues.map(() => lieutenant),
       est_offensive: true,
+      premier_choix_par_doctrine: [],
     };
   }
 
   // --- Jour ordinaire ----------------------------------------------------
   const nbFronts = clamp(entree.nb_fronts, 1, exposes.length);
+
+  // Calcul du premier choix idéal de chaque doctrine AVANT le draft :
+  // ce que chaque doctrine aurait pris si elle avait pioché en premier.
+  const ctxPreference = {
+    jour: entree.jour,
+    graine_lune: entree.graine_lune,
+    province: entree.province,
+    garnisons: entree.garnisons,
+    volumes_par_front: [] as number[],
+  };
+  const premierIdeal = new Map<NomDoctrine, LieuId>();
+  for (const d of doctrinesActives) {
+    premierIdeal.set(d, DOCTRINES[d].preferer(exposes, ctxPreference)[0]!);
+  }
 
   // Ordre des doctrines pour la draft (dérivé de la graine du jour).
   const ordreDoctrines = ordonnerDoctrines(doctrinesActives, entree.graine_lune, entree.jour);
@@ -167,7 +209,20 @@ export function orchestrerJour(entree: EntreeJourHorde): SortieJourHorde {
       doctrinesParVague.push(d);
     }
   }
-  return { vagues, doctrines_par_vague: doctrinesParVague, est_offensive: false };
+
+  // Diagnostic : chaque doctrine a-t-elle obtenu son premier choix idéal ?
+  const premierChoixParDoctrine: PremierChoixDoctrine[] = [];
+  for (const d of doctrinesActives) {
+    const ideal = premierIdeal.get(d)!;
+    const obtenu = (attribution.get(d) ?? []).includes(ideal);
+    premierChoixParDoctrine.push({ doctrine: d, premier_ideal: ideal, obtenu });
+  }
+  return {
+    vagues,
+    doctrines_par_vague: doctrinesParVague,
+    est_offensive: false,
+    premier_choix_par_doctrine: premierChoixParDoctrine,
+  };
 }
 
 // --- Helpers ---------------------------------------------------------------

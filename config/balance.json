@@ -37,6 +37,14 @@
   "grades": {
     "seuils_effectif": { "caporal": 8, "sergent": 15, "capitaine": 40, "general": 60 },
     "conditions_reserve": { "caporal": 1, "sergent": 2, "capitaine": 3, "general": 5 },
+    "effectif_commande": {
+      "recrue": 2,
+      "soldat": 4,
+      "caporal": 8,
+      "sergent": 15,
+      "capitaine": 30,
+      "general": 50
+    },
     "coordination": {
       "recrue": 1.0,
       "soldat": 1.0,
@@ -115,6 +123,7 @@
     "rendement_auto_production_veteran": 0.3,
     "usure_batailles_neuf": 12,
     "usure_batailles_apres_demobilisation": 4,
+    "reparation_batailles_rendues": 6,
     "cout_reparation_ratio": 0.35,
     "matieres_par_province_tenue_par_jour": 25,
     "rendement_atelier": 1.0

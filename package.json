@@ -13,6 +13,7 @@
     "carte:fragilite": "tsx sim/carte-fragilite.ts",
     "combat": "tsx sim/combat.ts",
     "combat:dominance": "tsx sim/combat-dominance.ts",
+    "campagne": "tsx sim/campagne-cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
