@@ -176,6 +176,16 @@ structurel implicite (`ceil((N-1-k)/k)`). Effet équivalent aux petites
 tailles, sémantique lisible. Écarté : biaiser E vers le bas à petit N —
 ça enlève une variable de tirage sans gain net.
 
+**Pertes en rapport brut, k = 0.18.** L'ancien facteur `F_a / (F_d + F_a)`
+était borné à 1, ce qui plafonnait les pertes à `k = 35 %` de l'effectif
+adverse par round quelle que soit la supériorité. Conséquence observée au
+banc : une garnison de 10 défenseurs tenait 5 rounds contre 1110 assaillants,
+donc `rounds_max` verrouillait l'issue plutôt que la force effective. Nouveau
+modèle : `pertes = k × effectif × (F_adv / F_prop)`, non borné. À parité,
+`k = 0.18` reproduit à peu près le comportement de l'ancien `0.35 / 2 = 0.175`
+à `F_d = F_a`. À 3 contre 1, les pertes atteignent 54 % — une percée est
+mécanique en deux rounds.
+
 **Rupture du lieu par effondrement.** Ajout d'une condition d'arrêt : à la
 fin d'un round où l'intérieur est engagé, si `F_intérieur < 0.5 × F_intrusion_survivant`,
 le lieu tombe. Redonne aux abords un prix — leur chute n'est plus une simple

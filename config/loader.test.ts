@@ -24,7 +24,7 @@ afterAll(() => {
 describe("chargerConfig", () => {
   it("charge le vrai balance.json et lit des valeurs clés", () => {
     const cfg = chargerConfig(REEL);
-    expect(cfg.combat.taux_pertes_par_round).toBe(0.35);
+    expect(cfg.combat.taux_pertes_par_round).toBe(0.18);
     expect(cfg.grades.seuils_effectif.sergent).toBe(15);
     expect(cfg.horde.doctrines_total).toBe(6);
   });

@@ -46,7 +46,7 @@
 
   "combat": {
     "rounds_max": 5,
-    "taux_pertes_par_round": 0.35,
+    "taux_pertes_par_round": 0.18,
     "seuil_rupture_abord": 0.25,
     "malus_flanc_apres_rupture": 0.7,
     "malus_engagement_reserve": 0.8,

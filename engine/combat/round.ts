@@ -170,13 +170,13 @@ export function resoudreRound(entree: EntreeRound): SortieRound {
     const F_interior = interior_eff * coordInterior;
     let pertes_int_def = 0;
 
-    if (interior_eff > 0) {
-      const total = F_interior + F_intrusion;
+    if (F_interior > 0 && F_intrusion > 0) {
+      // Même formule rapport brut que pour les abords.
       const k = config.combat.taux_pertes_par_round;
-      pertes_int_def = Math.floor(((k * F_intrusion) / total) * interior_eff);
-      pertes_intrusion = Math.floor(((k * F_interior) / total) * F_intrusion);
-      if (F_intrusion > 0 && pertes_int_def === 0) pertes_int_def = 1;
-      if (F_interior > 0 && pertes_intrusion === 0) pertes_intrusion = 1;
+      pertes_int_def = Math.floor(k * interior_eff * (F_intrusion / F_interior));
+      pertes_intrusion = Math.floor(k * F_intrusion * (F_interior / F_intrusion));
+      if (pertes_int_def === 0) pertes_int_def = 1;
+      if (pertes_intrusion === 0) pertes_intrusion = 1;
       pertes_int_def = Math.min(pertes_int_def, interior_eff);
       pertes_intrusion = Math.min(pertes_intrusion, F_intrusion);
 
@@ -437,18 +437,19 @@ function resoudreAbord(
     config.combat.clamp_force_max * abord.effectif,
   );
 
+  // Rapport brut F_a/F_d — non borné à 1, donc la supériorité effective
+  // pèse pleinement sur les pertes.
   const k = config.combat.taux_pertes_par_round;
-  const total = F_d + F_a;
   let pertes_d = 0;
   let pertes_a = 0;
-  if (total > 0) {
-    pertes_d = Math.floor(((k * F_a) / total) * abord.effectif);
-    pertes_a = Math.floor(((k * F_d) / total) * F_a);
-    if (F_a > 0 && pertes_d === 0) pertes_d = 1;
-    if (F_d > 0 && pertes_a === 0) pertes_a = 1;
+  if (F_d > 0 && F_a > 0) {
+    pertes_d = Math.floor(k * abord.effectif * (F_a / F_d));
+    pertes_a = Math.floor(k * F_a * (F_d / F_a));
+    if (pertes_d === 0) pertes_d = 1;
+    if (pertes_a === 0) pertes_a = 1;
+    pertes_d = Math.min(pertes_d, abord.effectif);
+    pertes_a = Math.min(pertes_a, F_a);
   }
-  pertes_d = Math.min(pertes_d, abord.effectif);
-  pertes_a = Math.min(pertes_a, F_a);
 
   const nouveau = abord.effectif - pertes_d;
   const seuil = config.combat.seuil_rupture_abord * abord.effectif_initial_assaut;

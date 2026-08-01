@@ -399,24 +399,31 @@ fortification^niveau × ravitaillement × fatigue × usure × coordination × pr
 
 ### Pertes
 
-Modèle **proportionnel simultané**. Les deux camps sont calculés à partir du même
-instantané, avant application.
+Modèle **proportionnel simultané en rapport brut**. Les deux camps sont calculés à
+partir du même instantané, avant application.
 
 ```
 F_d = force_effective(défenseur)
 F_a = force_effective(assaillant)
 
-pertes_d = k × ( F_a / (F_d + F_a) ) × effectif_d
-pertes_a = k × ( F_d / (F_d + F_a) ) × effectif_a
+pertes_d = min( effectif_d, k × effectif_d × (F_a / F_d) )
+pertes_a = min( effectif_a, k × effectif_a × (F_d / F_a) )
 ```
 
-`k = combat.taux_pertes_par_round` (0.35 au départ).
+`k = combat.taux_pertes_par_round` (0.18 au départ).
 
-Les pertes sont exprimées en **effectif**, arrondies à l'entier inférieur, avec un
-minimum de 1 si la force adverse est non nulle.
+Le rapport `F_a / F_d` **n'est pas borné à 1** : une supériorité effective de
+3 contre 1 inflige mécaniquement `3 × k = 54 %` de pertes par round, jusqu'au
+plafond de l'effectif lui-même. À parité, on retrouve `k` (~18 % par round).
 
-*Écarté : Lanchester carré — trop instable et difficile à raisonner pour un joueur qui
-ne voit pas la bataille.*
+Les pertes sont exprimées en **effectif**, arrondies à l'entier inférieur, avec
+un minimum de 1 si la force adverse est non nulle. Si `F_d = 0` ou `F_a = 0`,
+la division est court-circuitée : l'abord vide cède au round 1 (voir cas
+limites), et une vague vide n'inflige rien.
+
+*Écarté : le facteur `F_a / (F_d + F_a)`, borné à 1, plafonnait les pertes à
+`k` de l'effectif adverse quelle que soit la supériorité — une garnison de 10
+tenait 5 rounds contre 1110.*
 
 ### Résolution — ordre exact d'un round
 
