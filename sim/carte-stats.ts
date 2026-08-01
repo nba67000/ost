@@ -35,7 +35,8 @@ interface StatCarte {
   profondeurMaxSomme: number;
   routesSomme: number;
   routesRedondantesSomme: number;
-  sentiersSomme: number;
+  sentiersTactiquesSomme: number;
+  sentiersFosseSomme: number;
   relaxation: [number, number, number, number];
 }
 
@@ -93,7 +94,8 @@ for (const pop of POPULATIONS) {
     profondeurMaxSomme: 0,
     routesSomme: 0,
     routesRedondantesSomme: 0,
-    sentiersSomme: 0,
+    sentiersTactiquesSomme: 0,
+    sentiersFosseSomme: 0,
     relaxation: [0, 0, 0, 0],
   };
   const diag: StatDiagnostic = {
@@ -127,7 +129,11 @@ for (const pop of POPULATIONS) {
     carte.fossesSomme += nFosses;
     carte.goulotsSomme += s.goulots.length;
     carte.routesSomme += s.province.liens.filter((l) => l.nature === "route").length;
-    carte.sentiersSomme += s.province.liens.filter((l) => l.nature === "sentier").length;
+    const fosseIds = new Set<LieuId>(s.province.fosses);
+    const sentiers = s.province.liens.filter((l) => l.nature === "sentier");
+    const sentiersFosse = sentiers.filter((l) => fosseIds.has(l.a) || fosseIds.has(l.b)).length;
+    carte.sentiersFosseSomme += sentiersFosse;
+    carte.sentiersTactiquesSomme += sentiers.length - sentiersFosse;
     carte.relaxation[s.niveau_relaxation]++;
     carte.profondeurMaxSomme += profondeurRoutes(s.province.place_forte_id, s.province);
     const retenu = s.diagnostic[s.diagnostic.length - 1]!;
@@ -154,7 +160,7 @@ const lignes: string[] = [];
 lignes.push(`Distribution sur ${tirages} tirages par taille de population.`);
 lignes.push("");
 lignes.push(
-  "Pop.  Lieux (moy)  Fosses (moy)  Prof (moy)  Goulots (moy)  Routes/Redond/Sentiers  Relax 0/1/2/3",
+  "Pop.  Lieux (moy)  Fosses (moy)  Prof (moy)  Goulots (moy)  Arbre/Redond/SentTact  Relax 0/1/2/3",
 );
 lignes.push("-".repeat(115));
 for (const s of cartes) {
@@ -165,7 +171,7 @@ for (const s of cartes) {
   const routesArbre = s.routesSomme - s.routesRedondantesSomme;
   const moyArbre = (routesArbre / tirages).toFixed(1);
   const moyRedond = (s.routesRedondantesSomme / tirages).toFixed(1);
-  const moySentiers = (s.sentiersSomme / tirages).toFixed(1);
+  const moySentiers = (s.sentiersTactiquesSomme / tirages).toFixed(1);
   const relaxTaux = s.relaxation.map((n) => `${((n / tirages) * 100).toFixed(0)}%`).join("/");
   lignes.push(
     `${String(s.pop).padStart(4)}    ` +
