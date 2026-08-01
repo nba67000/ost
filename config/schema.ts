@@ -121,6 +121,7 @@ export interface Balance {
     readonly part_terrain_dominant: number;
     readonly cycles_min: number;
     readonly cycles_max: number;
+    readonly cycles_par_lieux: number;
     readonly fosses_min: number;
     readonly fosses_max: number;
   };
@@ -297,6 +298,7 @@ export const SCHEMA: SchemaNoeud = {
     part_terrain_dominant: "number",
     cycles_min: "number",
     cycles_max: "number",
+    cycles_par_lieux: "number",
     fosses_min: "number",
     fosses_max: "number",
   },

@@ -26,6 +26,23 @@ export interface EntreeGeneration {
   readonly config: Balance;
 }
 
+/** Motif de rejet d'un essai de génération. */
+export type MotifRejet =
+  "arithmetique_impossible" | "goulots_trop_peu" | "goulots_trop_nombreux" | "profondeur_depassee";
+
+/** Trace d'un essai : ce qui a été tiré, et pourquoi il a été retenu ou rejeté. */
+export interface DiagnosticEssai {
+  readonly niveau: 0 | 1 | 2 | 3;
+  /** Index de l'essai dans son niveau, 0-based. */
+  readonly essai: number;
+  readonly D_tire: number | null;
+  readonly E_tire: number | null;
+  readonly nb_cycles: number | null;
+  readonly nb_goulots: number | null;
+  /** null = essai retenu. */
+  readonly motif_rejet: MotifRejet | null;
+}
+
 export interface SortieGeneration {
   readonly province: Province;
   /** Nombre total d'essais consommés, tous niveaux de relâchement confondus. */
@@ -34,6 +51,11 @@ export interface SortieGeneration {
   readonly niveau_relaxation: 0 | 1 | 2 | 3;
   /** Lieux identifiés comme goulots dans la province retenue. */
   readonly goulots: readonly LieuId[];
+  /**
+   * Trace de tous les essais consommés (rejets + essai retenu en dernière position).
+   * Instrumentation destinée à `carte:stats` pour comprendre la sélection.
+   */
+  readonly diagnostic: readonly DiagnosticEssai[];
 }
 
 const TERRAINS: readonly TerrainId[] = ["crete", "marais", "foret", "plaine", "delta"];
@@ -75,18 +97,21 @@ export function genererCarte(entree: EntreeGeneration): SortieGeneration {
   );
   const essaisMax = entree.config.generation.essais_max;
 
+  const diagnostic: DiagnosticEssai[] = [];
   let totalEssais = 0;
   for (const niveau of NIVEAUX_RELAXATION) {
     for (let k = 0; k < essaisMax; k++) {
       totalEssais++;
       const rng = rngProvince.deriver(`niv-${niveau}-essai-${k}`);
-      const res = tenter(rng, N, entree, niveau);
-      if (res !== null) {
+      const res = tenter(rng, N, entree, niveau, k);
+      diagnostic.push(res.diagnostic);
+      if (res.retenu) {
         return {
           province: res.province,
           essais_utilises: totalEssais,
           niveau_relaxation: niveau,
           goulots: res.goulots,
+          diagnostic,
         };
       }
     }
@@ -99,41 +124,93 @@ export function genererCarte(entree: EntreeGeneration): SortieGeneration {
 
 // --- Détail d'un essai -----------------------------------------------------
 
-interface Tentative {
-  readonly province: Province;
-  readonly goulots: readonly LieuId[];
-}
+type ResultatEssai =
+  | {
+      readonly retenu: true;
+      readonly province: Province;
+      readonly goulots: readonly LieuId[];
+      readonly diagnostic: DiagnosticEssai;
+    }
+  | {
+      readonly retenu: false;
+      readonly diagnostic: DiagnosticEssai;
+    };
 
 function tenter(
   rng: RNG,
   N: number,
   entree: EntreeGeneration,
   niveau: 0 | 1 | 2 | 3,
-): Tentative | null {
+  indexEssai: number,
+): ResultatEssai {
   const { config } = entree;
 
   // Application des relâchements.
-  const cyclesMin = niveau >= 2 ? 1 : config.generation.cycles_min;
-  const cyclesMax = niveau >= 2 ? 1 : config.generation.cycles_max;
+  const cyclesMinCfg = niveau >= 2 ? 1 : config.generation.cycles_min;
+  const cyclesMaxCfg = niveau >= 2 ? 1 : config.generation.cycles_max;
   const profondeurMax = niveau >= 3 ? 3 : config.carte.profondeur_entree_place_forte_max;
-  const goulotsMin = niveau >= 1 ? 1 : config.carte.goulots_min;
+  const goulotsMinBase = niveau >= 1 ? 1 : config.carte.goulots_min;
+  // Cap structurel : dans une chaîne de N lieux, il y a au plus N-3 goulots
+  // (chaque intérieur qui déconnecte >= 2 lieux royaume). Pour N ≤ 4, on ne
+  // peut pas exiger 2 goulots ; on accepte donc silencieusement moins, sans
+  // compter cela comme un relâchement.
+  const goulotsMin = Math.min(goulotsMinBase, Math.max(0, N - 3));
   const goulotsMax = niveau >= 1 ? config.carte.goulots_max + 1 : config.carte.goulots_max;
 
-  // Étape 2 : D sous contrainte N - entrees_min >= D
+  const rejete = (partiel: {
+    D_tire: number | null;
+    E_tire: number | null;
+    nb_cycles: number | null;
+    nb_goulots: number | null;
+    motif_rejet: MotifRejet;
+  }): ResultatEssai => ({
+    retenu: false,
+    diagnostic: { niveau, essai: indexEssai, ...partiel },
+  });
+
+  // Étape 2 : D sous contrainte E >= entrees_min ⇒ D ≤ N - entrees_min
   const dMin = config.carte.profondeur_entree_place_forte_min;
   const dMax = Math.min(profondeurMax, N - config.carte.entrees_min);
-  if (dMax < dMin) return null;
-  const D = rng.entier(dMin, dMax);
+  if (dMax < 1) {
+    return rejete({
+      D_tire: null,
+      E_tire: null,
+      nb_cycles: null,
+      nb_goulots: null,
+      motif_rejet: "arithmetique_impossible",
+    });
+  }
+  // Cap dMin à dMax : pour les petites cartes (N=3), la profondeur cible n'est
+  // structurellement pas atteignable. On accepte D < dMin sans le compter comme
+  // un rejet — c'est une conséquence de la taille, pas un échec du tirage.
+  const dMinEffectif = Math.min(dMin, dMax);
+  const D = rng.entier(dMinEffectif, dMax);
 
-  // Étape 3 : E sous contrainte E <= N - D
+  // Étape 3 : E sous contrainte E ≤ N - D
   const eMin = config.carte.entrees_min;
   const eMax = Math.min(config.carte.entrees_max, N - D);
-  if (eMax < eMin) return null;
+  if (eMax < eMin) {
+    return rejete({
+      D_tire: D,
+      E_tire: null,
+      nb_cycles: null,
+      nb_goulots: null,
+      motif_rejet: "arithmetique_impossible",
+    });
+  }
   const E = rng.entier(eMin, eMax);
 
   // Étape 4 : répartition en couches
   const tailles = repartir(N, D, E);
-  if (tailles === null) return null;
+  if (tailles === null) {
+    return rejete({
+      D_tire: D,
+      E_tire: E,
+      nb_cycles: null,
+      nb_goulots: null,
+      motif_rejet: "arithmetique_impossible",
+    });
+  }
 
   const lieuParCouche: LieuId[][] = [];
   const tousRoyaume: LieuId[] = [];
@@ -158,8 +235,14 @@ function tenter(
     }
   }
 
-  // Étape 6 : cycles — SENTIERS entre couches identiques ou adjacentes
-  const nbCycles = rng.entier(cyclesMin, cyclesMax);
+  // Étape 6 : cycles — SENTIERS entre couches identiques ou adjacentes.
+  // Nombre déterministe fonction de N (voir RULES §3), pour que les cycles
+  // croissent avec la carte au lieu de rester fixes.
+  const nbCyclesCible = clampInt(
+    Math.round(N / config.generation.cycles_par_lieux),
+    cyclesMinCfg,
+    cyclesMaxCfg,
+  );
   const existantes = new Set<string>(liens.map((l) => paireCle(l.a, l.b)));
   const candidates: [LieuId, LieuId][] = [];
   for (let k = 0; k <= D; k++) {
@@ -180,11 +263,13 @@ function tenter(
       }
     }
   }
-  for (let i = 0; i < nbCycles && candidates.length > 0; i++) {
+  let nbCyclesReels = 0;
+  for (let i = 0; i < nbCyclesCible && candidates.length > 0; i++) {
     const idx = rng.entier(0, candidates.length - 1);
     const [u, v] = candidates.splice(idx, 1)[0]!;
     existantes.add(paireCle(u, v));
     liens.push({ a: u, b: v, nature: "sentier" });
+    nbCyclesReels++;
   }
 
   // Étape 7 : natures des lieux royaume
@@ -216,7 +301,6 @@ function tenter(
         nb = config.carte.abords.poste_avance;
         break;
       case "fosse":
-        // impossible ici (couvert plus bas pour les Fosses), mais couvre le typage
         nb = config.carte.abords.fosse;
         break;
     }
@@ -269,10 +353,8 @@ function tenter(
     const parentDe = new Map<LieuId, LieuId>();
     for (const lien of liens) {
       if (lien.nature !== "route") continue;
-      // Dans notre construction, a est parent (couche k-1), b est enfant (couche k).
       parentDe.set(lien.b, lien.a);
     }
-    // Un secteur par enfant direct de la PF.
     const enfantsPF: LieuId[] = [];
     for (const [enfant, parent] of parentDe) {
       if (parent === pfId) enfantsPF.push(enfant);
@@ -332,17 +414,55 @@ function tenter(
     fosses,
   };
 
-  // Vérification
+  // Vérification.
   const goulots = detecterGoulots(province);
-  if (goulots.length < goulotsMin || goulots.length > goulotsMax) return null;
+  if (goulots.length < goulotsMin) {
+    return rejete({
+      D_tire: D,
+      E_tire: E,
+      nb_cycles: nbCyclesReels,
+      nb_goulots: goulots.length,
+      motif_rejet: "goulots_trop_peu",
+    });
+  }
+  if (goulots.length > goulotsMax) {
+    return rejete({
+      D_tire: D,
+      E_tire: E,
+      nb_cycles: nbCyclesReels,
+      nb_goulots: goulots.length,
+      motif_rejet: "goulots_trop_nombreux",
+    });
+  }
   const distances = bfsRoutes(pfId, province);
   for (const l of lieux) {
     if (l.tenu_par !== "royaume") continue;
     const d = distances.get(l.id);
-    if (d === undefined || d > D) return null;
+    if (d === undefined || d > D) {
+      return rejete({
+        D_tire: D,
+        E_tire: E,
+        nb_cycles: nbCyclesReels,
+        nb_goulots: goulots.length,
+        motif_rejet: "profondeur_depassee",
+      });
+    }
   }
 
-  return { province, goulots };
+  return {
+    retenu: true,
+    province,
+    goulots,
+    diagnostic: {
+      niveau,
+      essai: indexEssai,
+      D_tire: D,
+      E_tire: E,
+      nb_cycles: nbCyclesReels,
+      nb_goulots: goulots.length,
+      motif_rejet: null,
+    },
+  };
 }
 
 // --- Helpers internes ------------------------------------------------------
@@ -354,7 +474,7 @@ function repartir(N: number, D: number, E: number): number[] | null {
   couches[0] = 1;
   couches[D] = E;
   if (D === 1) return couches;
-  const poidsSomme = ((D - 1) * D) / 2; // 1 + 2 + ... + (D-1)
+  const poidsSomme = ((D - 1) * D) / 2;
   let affecte = 0;
   for (let k = 1; k <= D - 1; k++) {
     const brut = (k * reste) / poidsSomme;

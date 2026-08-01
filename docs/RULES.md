@@ -110,9 +110,12 @@ Déterministe à partir d'une graine. Construction **par couches**, du cœur ver
 5. Arbre : chaque lieu de la couche k reçoit exactement un parent
    tiré dans la couche k-1. Toutes ces arêtes sont des ROUTES.
 
-6. Cycles : ajouter tirage( generation.cycles_min, generation.cycles_max )
+6. Cycles : ajouter
+     nb_cycles = clamp( round( N / generation.cycles_par_lieux ),
+                        generation.cycles_min, generation.cycles_max )
    arêtes supplémentaires entre lieux de couches identiques ou adjacentes.
-   Ces arêtes sont des SENTIERS.
+   Ces arêtes sont des SENTIERS. Nombre déterministe : les cycles doivent
+   croître avec N pour éviter que la carte ne devienne un arbre pur.
 
 7. Natures des lieux royaume : couche 0         = place_forte
                                couches D-1 et D = poste_avance

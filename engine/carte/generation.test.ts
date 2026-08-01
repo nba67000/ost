@@ -163,15 +163,15 @@ describe("generation — dimensionnement", () => {
       expect(royaume).toBe(nAttendu);
       expect(fosses).toBeGreaterThanOrEqual(config.generation.fosses_min);
       expect(fosses).toBeLessThanOrEqual(config.generation.fosses_max);
-      // Cardinalité totale = royaume + fosses
       expect(s.province.lieux.length).toBe(royaume + fosses);
     }
   });
 
   it("dimensionnement à 2, 5, 15, 40, 60, 200 joueurs", () => {
+    // avec lieux_min=3, lieux_par_joueur_actif=0.33 :
     const cas: [number, number][] = [
-      [2, 5], // clamp min
-      [5, 5], // round(1.65) → 2, clamp → 5
+      [2, 3], // clamp min
+      [5, 3], // round(1.65) → 2, clamp min → 3
       [15, 5], // round(4.95) → 5
       [40, 13], // round(13.2) → 13
       [60, 20], // round(19.8) → 20
