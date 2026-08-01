@@ -28,7 +28,14 @@
   "grades": {
     "seuils_effectif": { "caporal": 8, "sergent": 15, "capitaine": 40, "general": 60 },
     "conditions_reserve": { "caporal": 1, "sergent": 2, "capitaine": 3, "general": 5 },
-    "coordination": { "recrue": 1.0, "soldat": 1.0, "caporal": 1.02, "sergent": 1.05, "capitaine": 1.08, "general": 1.1 },
+    "coordination": {
+      "recrue": 1.0,
+      "soldat": 1.0,
+      "caporal": 1.02,
+      "sergent": 1.05,
+      "capitaine": 1.08,
+      "general": 1.1
+    },
     "mandat_jours": 10,
     "interim_apres_heures_inactivite": 12,
     "decroissance_si_non_exerce_une_lune": 1
@@ -44,9 +51,15 @@
     "abords_place_forte_min": 3,
     "abords_place_forte_max": 4,
     "matrice_posture": {
-      "mur":    { "souche": 1.6, "ecorcheur": 1.0, "belier": 0.5, "chien_de_fosse": 0.9, "muet": 0.8 },
-      "cognee": { "souche": 0.9, "ecorcheur": 0.6, "belier": 1.8, "chien_de_fosse": 1.0, "muet": 0.9 },
-      "fer":    { "souche": 0.7, "ecorcheur": 1.1, "belier": 1.0, "chien_de_fosse": 1.2, "muet": 1.6 }
+      "mur": { "souche": 1.6, "ecorcheur": 1.0, "belier": 0.5, "chien_de_fosse": 0.9, "muet": 0.8 },
+      "cognee": {
+        "souche": 0.9,
+        "ecorcheur": 0.6,
+        "belier": 1.8,
+        "chien_de_fosse": 1.0,
+        "muet": 0.9
+      },
+      "fer": { "souche": 0.7, "ecorcheur": 1.1, "belier": 1.0, "chien_de_fosse": 1.2, "muet": 1.6 }
     },
     "modificateurs": {
       "fortification_par_niveau": 1.1,
@@ -106,10 +119,10 @@
   },
 
   "terrain": {
-    "crete":  { "fortification": 1.2 },
+    "crete": { "fortification": 1.2 },
     "marais": { "recharge": 0.5 },
-    "foret":  { "bonus_ecorcheur": 1.25 },
-    "delta":  { "fragilite_routes": 0.8 },
+    "foret": { "bonus_ecorcheur": 1.25 },
+    "delta": { "fragilite_routes": 0.8 },
     "plaine": {}
   },
 
