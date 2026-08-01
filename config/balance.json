@@ -1,0 +1,141 @@
+{
+  "_note": "Toutes les valeurs sont provisoires et destinees a etre fixees par la simulation en phase 1. Aucune ne doit etre recopiee en dur dans /engine. Marquees [calibrer].",
+
+  "temps": {
+    "duree_lune_jours": 30,
+    "actes_par_lune": 3,
+    "heure_assaut": "21:00",
+    "verrouillage_ordres_minutes_avant": 60,
+    "entre_deux_lunes_jours": 3,
+    "bonus_preparation_verrouillage_matinal": 1.15,
+    "malus_fatigue_reordonnancement_tardif": 0.9,
+    "jour_premier_assaut": 2
+  },
+
+  "carte": {
+    "lieux_par_joueur_actif": 0.33,
+    "lieux_min": 5,
+    "lieux_max": 25,
+    "profondeur_entree_place_forte_min": 3,
+    "profondeur_entree_place_forte_max": 4,
+    "goulots_min": 2,
+    "goulots_max": 4,
+    "entrees_min": 1,
+    "entrees_max": 3,
+    "abords": { "feu_de_guet": 2, "poste_avance": 1 }
+  },
+
+  "grades": {
+    "seuils_effectif": { "caporal": 8, "sergent": 15, "capitaine": 40, "general": 60 },
+    "conditions_reserve": { "caporal": 1, "sergent": 2, "capitaine": 3, "general": 5 },
+    "coordination": { "recrue": 1.0, "soldat": 1.0, "caporal": 1.02, "sergent": 1.05, "capitaine": 1.08, "general": 1.1 },
+    "mandat_jours": 10,
+    "interim_apres_heures_inactivite": 12,
+    "decroissance_si_non_exerce_une_lune": 1
+  },
+
+  "combat": {
+    "rounds_max": 5,
+    "taux_pertes_par_round": 0.35,
+    "seuil_rupture_abord": 0.25,
+    "malus_flanc_apres_rupture": 0.7,
+    "clamp_force_min": 0.3,
+    "clamp_force_max": 3.0,
+    "abords_place_forte_min": 3,
+    "abords_place_forte_max": 4,
+    "matrice_posture": {
+      "mur":    { "souche": 1.6, "ecorcheur": 1.0, "belier": 0.5, "chien_de_fosse": 0.9, "muet": 0.8 },
+      "cognee": { "souche": 0.9, "ecorcheur": 0.6, "belier": 1.8, "chien_de_fosse": 1.0, "muet": 0.9 },
+      "fer":    { "souche": 0.7, "ecorcheur": 1.1, "belier": 1.0, "chien_de_fosse": 1.2, "muet": 1.6 }
+    },
+    "modificateurs": {
+      "fortification_par_niveau": 1.1,
+      "garnison_affamee": 0.6,
+      "fatigue_combat_veille": 0.85,
+      "usure_equipement_min": 0.7
+    }
+  },
+
+  "horde": {
+    "exposant_adaptation_population": 0.7,
+    "fenetre_mesure_activite_jours": 7,
+    "plancher_intensite": 0.5,
+    "plafond_intensite_par_front": 2.5,
+    "production_par_fosse_par_jour": 10,
+    "doctrines_total": 6,
+    "doctrines_par_lune": 3,
+    "diviseur_fronts": 8,
+    "multiplicateur_offensive": 2.5,
+    "part_goulot": 2.0
+  },
+
+  "renseignement": {
+    "delai_patrouille_heures": 0,
+    "delai_eclaireur_jours": 1,
+    "delai_espion_jours": 2,
+    "questions_espion_par_cycle": 1
+  },
+
+  "blessures": {
+    "duree_heures": { "legere": 6, "serieuse": 18, "grave": 36 },
+    "escalade_facteur": 1.5,
+    "fenetre_escalade_heures": 72,
+    "places_eleves_par_blesse": 3,
+    "plafond_piste_arriere_par_lune": 100,
+    "part_des_pertes": 0.5,
+    "seuils_severite": { "serieuse": 1.5, "grave": 3.0 }
+  },
+
+  "economie": {
+    "rendement_auto_production_veteran": 0.3,
+    "usure_batailles_neuf": 12,
+    "usure_batailles_apres_demobilisation": 4,
+    "cout_reparation_ratio": 0.35,
+    "matieres_par_province_tenue_par_jour": 25,
+    "rendement_atelier": 1.0
+  },
+
+  "progression": {
+    "multiplicateur_besoin_min": 0.7,
+    "multiplicateur_besoin_max": 1.8,
+    "bonus_ordre_accompli": 1.4,
+    "satiete_quotidienne_par_activite": 20,
+    "jours_cible_acces_marche": 5,
+    "ratio_paliers": 2.2,
+    "base_evenement": 1.0
+  },
+
+  "terrain": {
+    "crete":  { "fortification": 1.2 },
+    "marais": { "recharge": 0.5 },
+    "foret":  { "bonus_ecorcheur": 1.25 },
+    "delta":  { "fragilite_routes": 0.8 },
+    "plaine": {}
+  },
+
+  "ravitaillement": {
+    "capacite_max": { "place_forte": 10, "feu_de_guet": 6, "poste_avance": 3 },
+    "consommation_par_jour": 1,
+    "consommation_assaut": 1,
+    "recharge_par_jour": 2,
+    "seuil_affamee_jours": 2
+  },
+
+  "compression": {
+    "max_par_lune": 2
+  },
+
+  "generation": {
+    "essais_max": 50,
+    "part_terrain_dominant": 0.6,
+    "cycles_min": 2,
+    "cycles_max": 3,
+    "fosses_min": 1,
+    "fosses_max": 3
+  },
+
+  "usure": {
+    "par_assaut": 1,
+    "penalite_abord_rompu": 1
+  }
+}
