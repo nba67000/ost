@@ -1,15 +1,12 @@
 // npm run combat -- --scenario <fichier.json>
-// Rejoue un assaut décrit dans un fichier, imprime le journal round par round.
+// Rejoue un assaut décrit dans un fichier, imprime le journal round par round,
+// puis un résumé (blessures par sévérité, usure par abord, issue).
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { chargerConfig } from "../config/loader.js";
-import {
-  resoudreRound,
-  type EtatAbord,
-  type EtatRound,
-  type JournalRound,
-} from "../engine/combat/round.js";
+import { resoudreAssaut, type SortieAssaut } from "../engine/combat/assaut.js";
+import { type EtatAbord, type EtatRound, type JournalRound } from "../engine/combat/round.js";
 import type { AbordId, LieuId } from "../engine/types/carte.js";
 import type { TypeForge } from "../engine/types/forge.js";
 import type { Posture } from "../engine/types/garnison.js";
@@ -26,8 +23,6 @@ function erreur(msg: string): never {
   process.stderr.write(msg + "\n");
   process.exit(1);
 }
-
-// --- Parsing du scénario --------------------------------------------------
 
 interface ScenarioAbord {
   abord_id: string;
@@ -57,7 +52,6 @@ interface ScenarioVaguesRound {
 
 interface Scenario {
   lieu_id: string;
-  rounds_max: number;
   abords: ScenarioAbord[];
   reserve: ScenarioReserve;
   conditions_reserve: ConditionReserve[];
@@ -76,14 +70,16 @@ function normaliserComposition(
   };
 }
 
-function sommeComposition(c: Record<TypeForge, number>): number {
-  return c.souche + c.ecorcheur + c.belier + c.chien_de_fosse + c.muet;
+function sommeCompositionAff(c: Record<TypeForge, number>): string {
+  const parts: string[] = [];
+  for (const t of ["souche", "ecorcheur", "belier", "chien_de_fosse", "muet"] as TypeForge[]) {
+    if (c[t] > 0) parts.push(`${c[t]} ${t}`);
+  }
+  return parts.join(" + ") || "vide";
 }
 
-// --- Rendu -----------------------------------------------------------------
-
-function nombre(v: number, decimales = 1): string {
-  return v.toFixed(decimales);
+function nombre(v: number, d = 1): string {
+  return v.toFixed(d);
 }
 
 function imprimerEntete(scen: Scenario, etat0: EtatRound): void {
@@ -91,7 +87,7 @@ function imprimerEntete(scen: Scenario, etat0: EtatRound): void {
   out.push(
     `Assaut sur ${scen.lieu_id} — commandant ${scen.reserve.commandant_grade}, ` +
       `${scen.abords.length} abord${scen.abords.length > 1 ? "s" : ""}, ` +
-      `réserve initiale ${scen.reserve.effectif}, rounds_max ${scen.rounds_max}`,
+      `réserve initiale ${scen.reserve.effectif}`,
   );
   out.push("État initial :");
   for (const a of etat0.abords) {
@@ -133,12 +129,10 @@ function imprimerRound(
         `${flanque}${rupture}`,
     );
   }
-  if (journal.engagements_reserve.length > 0) {
-    for (const e of journal.engagements_reserve) {
-      out.push(
-        `  Réserve : condition #${e.condition_ordre} → engage ${e.effectif_engage} sur ${e.abord_cible}`,
-      );
-    }
+  for (const e of journal.engagements_reserve) {
+    out.push(
+      `  Réserve : condition #${e.condition_ordre} → engage ${e.effectif_engage} sur ${e.abord_cible}`,
+    );
   }
   if (journal.lieu_tombe) {
     out.push(`  → Lieu tombé.`);
@@ -146,15 +140,48 @@ function imprimerRound(
   process.stdout.write(out.join("\n") + "\n\n");
 }
 
-function sommeCompositionAff(c: Record<TypeForge, number>): string {
-  const parts: string[] = [];
-  for (const t of ["souche", "ecorcheur", "belier", "chien_de_fosse", "muet"] as TypeForge[]) {
-    if (c[t] > 0) parts.push(`${c[t]} ${t}`);
+function imprimerResume(sortie: SortieAssaut): void {
+  const out: string[] = [];
+  const issueTexte =
+    sortie.issue === "lieu_tombe"
+      ? `Lieu tombé au round ${sortie.rounds_utilises}.`
+      : sortie.issue === "assaut_repousse"
+        ? `Assaut repoussé (${sortie.rounds_utilises} round${sortie.rounds_utilises > 1 ? "s" : ""}).`
+        : `Rounds max atteints (${sortie.rounds_utilises}), défenseur tient.`;
+  out.push(`Issue : ${issueTexte}`);
+
+  // Blessures
+  const par_sev = { legere: 0, serieuse: 0, grave: 0 };
+  for (const b of sortie.blessures) par_sev[b.severite]++;
+  out.push(
+    `Blessures : ${sortie.blessures.length} au total ` +
+      `(légères ${par_sev.legere}, sérieuses ${par_sev.serieuse}, graves ${par_sev.grave})`,
+  );
+  if (sortie.blessures.length > 0) {
+    const par_abord = new Map<string, number>();
+    for (const b of sortie.blessures) {
+      par_abord.set(b.abord_id, (par_abord.get(b.abord_id) ?? 0) + 1);
+    }
+    for (const [id, n] of par_abord) {
+      out.push(`  ${id.padEnd(10)} ${n} blessé${n > 1 ? "s" : ""}`);
+    }
   }
-  return parts.join(" + ") || "vide";
+
+  // Usure
+  const usure_pertinente = sortie.usure.filter((u) => u.cout > 0);
+  if (usure_pertinente.length > 0) {
+    out.push(`Usure par abord (coût par pièce engagée) :`);
+    for (const u of usure_pertinente) {
+      out.push(`  ${u.abord_id.padEnd(10)} +${u.cout}`);
+    }
+  } else {
+    out.push(`Usure : aucun combat effectif.`);
+  }
+
+  process.stdout.write(out.join("\n") + "\n");
 }
 
-// --- Main -----------------------------------------------------------------
+// --- Main ---------------------------------------------------------------
 
 const scenPath = arg("scenario");
 if (scenPath === undefined) {
@@ -178,7 +205,6 @@ try {
 
 const config = chargerConfig("./config/balance.json");
 
-// Construction de l'état initial : effectif_initial_assaut = effectif si absent.
 const abords0: EtatAbord[] = scen.abords.map((a) => ({
   abord_id: a.abord_id as AbordId,
   effectif: a.effectif,
@@ -196,7 +222,7 @@ const abords0: EtatAbord[] = scen.abords.map((a) => ({
   flanque_ce_round: false,
 }));
 
-let etat: EtatRound = {
+const etat_initial: EtatRound = {
   lieu_id: scen.lieu_id as LieuId,
   numero_round: 1,
   abords: abords0,
@@ -207,35 +233,28 @@ let etat: EtatRound = {
   },
 };
 
-imprimerEntete(scen, etat);
-
-// Boucle sur les rounds.
-const vaguesParRound = new Map<number, Map<AbordId, Record<TypeForge, number>>>();
+const vagues_par_round = new Map<number, Map<AbordId, Record<TypeForge, number>>>();
 for (const vr of scen.vagues_par_round) {
   const m = new Map<AbordId, Record<TypeForge, number>>();
   for (const [id, comp] of Object.entries(vr.vagues)) {
-    const norm = normaliserComposition(comp);
-    if (sommeComposition(norm) > 0) m.set(id as AbordId, norm);
+    m.set(id as AbordId, normaliserComposition(comp));
   }
-  vaguesParRound.set(vr.round, m);
+  vagues_par_round.set(vr.round, m);
 }
 
-let issue: string;
-for (let r = 1; r <= scen.rounds_max; r++) {
-  const vagues = vaguesParRound.get(r) ?? new Map();
-  const s = resoudreRound({
-    etat,
-    vagues,
-    conditions_reserve: scen.conditions_reserve,
-    config,
-  });
-  imprimerRound(s.journal, vagues);
-  etat = s.etat_apres;
-  if (s.journal.lieu_tombe) {
-    issue = `Issue : lieu tombé au round ${r}.`;
-    break;
-  }
-}
-issue ??= `Issue : ${scen.rounds_max} rounds atteints, lieu tenu.`;
+imprimerEntete(scen, etat_initial);
 
-process.stdout.write(issue + "\n");
+const sortie = resoudreAssaut({
+  etat_initial,
+  vagues_par_round,
+  conditions_reserve: scen.conditions_reserve,
+  config,
+});
+
+for (let i = 0; i < sortie.rounds.length; i++) {
+  const journal = sortie.rounds[i]!;
+  const wave = vagues_par_round.get(journal.numero_round) ?? new Map();
+  imprimerRound(journal, wave);
+}
+
+imprimerResume(sortie);

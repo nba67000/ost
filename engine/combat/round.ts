@@ -11,6 +11,7 @@
 // L'appelant boucle sur les rounds pour un assaut complet.
 
 import type { Balance } from "../../config/schema.js";
+import { puissanceEntiere } from "../math/index.js";
 import type { AbordId, LieuId } from "../types/carte.js";
 import type { TypeForge } from "../types/forge.js";
 import type { Posture } from "../types/garnison.js";
@@ -362,7 +363,7 @@ function calcCoefPosture(
 function calcModifiers(abord: EtatAbord, config: Balance): number {
   const fortifBase = config.combat.modificateurs.fortification_par_niveau;
   const fortifTerme =
-    Math.pow(fortifBase, abord.fortification_niveau) * abord.terrain_fortification;
+    puissanceEntiere(fortifBase, abord.fortification_niveau) * abord.terrain_fortification;
   const usurePlancher = config.combat.modificateurs.usure_equipement_min;
   const usureEffective = Math.max(abord.usure_coef, usurePlancher);
   const coordination = config.grades.coordination[abord.commandant_grade];
