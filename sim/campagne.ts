@@ -85,7 +85,7 @@ export function executerCampagne(opts: OptionsCampagne): ResultatCampagne {
     joueurs,
     puissance_varhal: opts.puissance_varhal,
     doctrines_actives: doctrines,
-    metriques: metriquesVides(),
+    metriques: metriquesVides(province.lieux.filter((l) => l.tenu_par === "royaume").length),
   };
 
   const rapports: RapportJour[] = [];

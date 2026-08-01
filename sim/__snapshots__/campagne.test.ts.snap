@@ -3,7 +3,6 @@
 exports[`executerCampagne — mélange représentatif > 30 jours, graine 42, snapshot stable 1`] = `
 {
   "blesses_au_centre": {
-    "jours_sous_3": 13,
     "maximum": 6,
     "minimum": 1,
     "moyenne": 2.966666666666667,
@@ -44,6 +43,11 @@ exports[`executerCampagne — mélange représentatif > 30 jours, graine 42, sna
     "grave": 37,
     "legere": 47,
     "serieuse": 5,
+  },
+  "couverture": {
+    "jours_sous_1": 13,
+    "minimum": 0.42857142857142855,
+    "moyenne": 1.292857142857143,
   },
   "doctrines_actives": [
     "ecorcheurs",

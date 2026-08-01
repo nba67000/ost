@@ -55,6 +55,15 @@ export interface MetriquesDoctrine {
   readonly draft_tours: number;
 }
 
+/** Cause par laquelle un lieu passe de royaume à horde/détruit. */
+export type CauseChute = "assaut" | "famine" | "isole";
+
+export interface EnregistrementChute {
+  readonly lieu_id: import("./carte.js").LieuId;
+  readonly jour: number;
+  readonly cause: CauseChute;
+}
+
 export interface MetriquesCampagne {
   readonly premier_choix_par_doctrine: Readonly<Record<NomDoctrine, MetriquesDoctrine>>;
   readonly blessures_totales: {
@@ -71,7 +80,24 @@ export interface MetriquesCampagne {
    * sont indépendantes. Longueur croît d'un chaque jour simulé.
    */
   readonly blesses_au_centre_par_jour: readonly number[];
+  /**
+   * Couverture du pilier de transmission jour par jour :
+   *   places_disponibles / recrues_présentes
+   * où places_disponibles = stock_au_centre × places_eleves_par_blesse
+   * et recrues_présentes = joueurs de grade "recrue" actifs (non blessés).
+   * Valeur ≥ 1.0 = le pilier tient ; < 1.0 = plus de recrues que de places.
+   */
+  readonly couverture_par_jour: readonly number[];
   readonly lieux_royaume_par_jour: readonly number[];
+  /** Volume total de la horde par jour ordinaire (0 les jours sans assaut). */
+  readonly volume_par_jour: readonly number[];
+  readonly nb_fronts_par_jour: readonly number[];
+  /** Effectif défensif moyen sur les lieux attaqués ce jour (0 si aucun assaut). */
+  readonly effectif_defensif_moyen_par_front_par_jour: readonly number[];
+  /** Une entrée par lieu ayant chuté, dans l'ordre chronologique. */
+  readonly chutes: readonly EnregistrementChute[];
+  /** Nombre de lieux royaume au tout début de la campagne (avant J1). */
+  readonly lieux_royaume_initial: number;
   /** Jour où la place forte tombe. Null si la province tient les 30 jours. */
   readonly jour_chute: number | null;
 }

@@ -48,8 +48,12 @@ export interface SortieJour {
   readonly rapport: RapportJour;
 }
 
-/** Fabrique un état vide de métriques (utilisé pour initialiser une campagne). */
-export function metriquesVides(): MetriquesCampagne {
+/**
+ * Fabrique un état vide de métriques. Le caller doit remplir
+ * `lieux_royaume_initial` (nb de lieux royaume avant J1) — c'est la
+ * référence pour calculer le délai « 1ère perte → moitié de province ».
+ */
+export function metriquesVides(lieux_royaume_initial = 0): MetriquesCampagne {
   return {
     premier_choix_par_doctrine: {
       marteau: { premier_choix_obtenus: 0, draft_tours: 0 },
@@ -63,7 +67,13 @@ export function metriquesVides(): MetriquesCampagne {
     usure_consommee: 0,
     equipements_detruits: 0,
     blesses_au_centre_par_jour: [],
+    couverture_par_jour: [],
     lieux_royaume_par_jour: [],
+    volume_par_jour: [],
+    nb_fronts_par_jour: [],
+    effectif_defensif_moyen_par_front_par_jour: [],
+    chutes: [],
+    lieux_royaume_initial,
     jour_chute: null,
   };
 }
@@ -250,6 +260,11 @@ export function avancerJour(entree: EntreeJour): SortieJour {
   }
 
   // 8. Métriques.
+  const effectifDefensifMoyen =
+    planHorde.vagues.length === 0
+      ? 0
+      : planHorde.vagues.reduce((s, v) => s + (garnisonsEffectifs.get(v.lieu_id) ?? 0), 0) /
+        planHorde.vagues.length;
   const metriques = accumulerMetriques(
     etat.metriques,
     planHorde,
@@ -259,6 +274,11 @@ export function avancerJour(entree: EntreeJour): SortieJour {
     joueursCourants, // après retours
     provinceApres,
     jourResolu,
+    volumeTotal,
+    nbFronts,
+    effectifDefensifMoyen,
+    lieuxPerdus,
+    config,
   );
 
   return {
@@ -379,6 +399,11 @@ function accumulerMetriques(
   joueursApresRetours: ReadonlyMap<JoueurId, EtatJoueur>,
   provinceApres: Province,
   jourResolu: number,
+  volumeTotal: number,
+  nbFronts: number,
+  effectifDefensifMoyen: number,
+  lieuxPerdus: readonly LieuId[],
+  config: Balance,
 ): MetriquesCampagne {
   const nouveauxPremierChoix = { ...precedentes.premier_choix_par_doctrine };
   for (const pc of planHorde.premier_choix_par_doctrine) {
@@ -389,13 +414,28 @@ function accumulerMetriques(
     };
   }
   // Stock au centre : joueurs dont blessure existe encore APRÈS retours.
-  // La sortie du centre a été appliquée à l'étape 7 (fin_presence_centre
-  // ≤ jour+1), donc tout blessure non nulle ici implique une présence
-  // effective pour le lendemain, indépendante de l'aptitude au combat.
   let blessesAuCentre = 0;
-  for (const j of joueursApresRetours.values()) if (j.blessure !== null) blessesAuCentre++;
+  let recruesActives = 0;
+  for (const j of joueursApresRetours.values()) {
+    if (j.blessure !== null) blessesAuCentre++;
+    if (j.grade === "recrue" && j.blessure === null) recruesActives++;
+  }
+
+  // Couverture du pilier de transmission.
+  const placesDisponibles = blessesAuCentre * config.blessures.places_eleves_par_blesse;
+  const couverture = recruesActives === 0 ? Number.POSITIVE_INFINITY : placesDisponibles / recruesActives;
 
   const lieuxRoyaume = provinceApres.lieux.filter((l) => l.tenu_par === "royaume").length;
+
+  // Cause de chute — v1 : la seule cause productive dans le modèle actuel
+  // est "assaut" (le lieu tombe par combat). "famine" et "isole" restent
+  // possibles conceptuellement mais aucun mécanisme actuel ne les produit —
+  // le diagnostic le confirme en attribuant zéro à ces catégories.
+  const nouvellesChutes = lieuxPerdus.map((id) => ({
+    lieu_id: id,
+    jour: jourResolu,
+    cause: "assaut" as const,
+  }));
 
   const jourChute =
     precedentes.jour_chute !== null
@@ -414,7 +454,16 @@ function accumulerMetriques(
     usure_consommee: precedentes.usure_consommee + usure,
     equipements_detruits: precedentes.equipements_detruits + equipements,
     blesses_au_centre_par_jour: [...precedentes.blesses_au_centre_par_jour, blessesAuCentre],
+    couverture_par_jour: [...precedentes.couverture_par_jour, couverture],
     lieux_royaume_par_jour: [...precedentes.lieux_royaume_par_jour, lieuxRoyaume],
+    volume_par_jour: [...precedentes.volume_par_jour, volumeTotal],
+    nb_fronts_par_jour: [...precedentes.nb_fronts_par_jour, nbFronts],
+    effectif_defensif_moyen_par_front_par_jour: [
+      ...precedentes.effectif_defensif_moyen_par_front_par_jour,
+      effectifDefensifMoyen,
+    ],
+    chutes: [...precedentes.chutes, ...nouvellesChutes],
+    lieux_royaume_initial: precedentes.lieux_royaume_initial,
     jour_chute: jourChute,
   };
 }

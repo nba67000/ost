@@ -29,15 +29,19 @@ export interface RapportCampagne {
     readonly moyenne: number;
     readonly minimum: number;
     readonly maximum: number;
-    /**
-     * Nombre de jours où le stock au centre est tombé sous 3.
-     * Le pilier de transmission (vétérans formant les recrues) exige un
-     * seuil de présence : trois jours d'affilée sous 3 n'est plus un
-     * pilier.
-     */
-    readonly jours_sous_3: number;
   };
   readonly blesses_au_centre_serie: readonly number[];
+  /**
+   * Couverture du pilier de transmission :
+   *   places_disponibles / recrues_présentes
+   * ≥ 1.0 : le pilier tient. < 1.0 : plus de recrues que de places.
+   * `jours_sous_1` = nombre de jours où la couverture est tombée sous 1.0.
+   */
+  readonly couverture: {
+    readonly moyenne: number;
+    readonly minimum: number;
+    readonly jours_sous_1: number;
+  };
   readonly blessures_totales: {
     readonly legere: number;
     readonly serieuse: number;
@@ -65,7 +69,13 @@ export function synthetiser(res: ResultatCampagne): RapportCampagne {
   const moyenne = bc.length === 0 ? 0 : bc.reduce((a, b) => a + b, 0) / bc.length;
   const minimum = bc.length === 0 ? 0 : Math.min(...bc);
   const maximum = bc.length === 0 ? 0 : Math.max(...bc);
-  const jours_sous_3 = bc.filter((v) => v < 3).length;
+
+  // Couverture — on ignore les valeurs Infinity (aucune recrue → non défini)
+  // pour la moyenne et le minimum ; on n'y voit pas de « sous 1 ».
+  const cv = m.couverture_par_jour.filter((v) => Number.isFinite(v));
+  const cvMoy = cv.length === 0 ? 0 : cv.reduce((a, b) => a + b, 0) / cv.length;
+  const cvMin = cv.length === 0 ? 0 : Math.min(...cv);
+  const cvSous1 = cv.filter((v) => v < 1).length;
 
   const premierChoix: RapportCampagne["premier_choix"] = res.etat_final.doctrines_actives.map(
     (d) => {
@@ -84,7 +94,8 @@ export function synthetiser(res: ResultatCampagne): RapportCampagne {
     resultat: res.province_est_tombee ? "tombee" : "tenue",
     jour_chute: m.jour_chute,
     lieux_tenus_fin_acte: { acte_1: acte1, acte_2: acte2, acte_3: acte3 },
-    blesses_au_centre: { moyenne, minimum, maximum, jours_sous_3 },
+    blesses_au_centre: { moyenne, minimum, maximum },
+    couverture: { moyenne: cvMoy, minimum: cvMin, jours_sous_1: cvSous1 },
     blesses_au_centre_serie: bc,
     blessures_totales: m.blessures_totales,
     usure_consommee: m.usure_consommee,
@@ -113,12 +124,10 @@ export function rendreTexte(r: RapportCampagne): string {
       `minimum ${r.blesses_au_centre.minimum}, pic ${r.blesses_au_centre.maximum}`,
   );
   const totalJours = r.blesses_au_centre_serie.length;
-  const alerteStock =
-    r.blesses_au_centre.jours_sous_3 >= 3
-      ? "  ← alerte : pilier de transmission absent trop longtemps"
-      : "";
   lignes.push(
-    `Jours de stock < 3  : ${r.blesses_au_centre.jours_sous_3}/${totalJours}${alerteStock}`,
+    `Couverture pilier   : moyenne ${r.couverture.moyenne.toFixed(2)}, ` +
+      `minimum ${r.couverture.minimum.toFixed(2)}, ` +
+      `${r.couverture.jours_sous_1}/${totalJours} jours sous 1.0`,
   );
   lignes.push(
     `Blessures totales   : ${r.blessures_totales.legere + r.blessures_totales.serieuse + r.blessures_totales.grave} ` +
