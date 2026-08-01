@@ -119,9 +119,10 @@ Déterministe à partir d'une graine. Construction **par couches**, du cœur ver
 
     **Phase A (primaire) : minimiser la fragilité maximale.**
     Objectif : aucun lieu (hors PF) ne doit déconnecter plus de
-    `round(N × carte.fragilite_max_coef)` autres lieux du royaume, capé au
-    minimum structurel `ceil((N - 1 - couches[1]) / couches[1])`. À chaque
-    itération, choisir l'arête qui réduit le plus la fragilité maximale.
+    `max( carte.fragilite_plancher_absolu, round(N × carte.fragilite_max_coef) )`
+    autres lieux du royaume. Le plancher absolu (par défaut 3) rend explicite
+    l'acceptation d'une fragilité modérée à petit N. À chaque itération,
+    choisir l'arête qui réduit le plus la fragilité maximale.
 
     **Phase B (secondaire) : ramener les goulots dans la fenêtre.**
     Fenêtre = [ round(N × carte.goulots_coef_min),

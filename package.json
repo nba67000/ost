@@ -11,6 +11,7 @@
     "carte": "tsx sim/carte.ts",
     "carte:stats": "tsx sim/carte-stats.ts",
     "carte:fragilite": "tsx sim/carte-fragilite.ts",
+    "combat": "tsx sim/combat.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",

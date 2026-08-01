@@ -1,0 +1,74 @@
+{
+  "_note": "Assaut sur un Feu de Guet à 2 abords (porte + poterne), sergent commandant, réserve de 8. Deux vagues successives, avec une condition de réserve.",
+  "lieu_id": "L001",
+  "rounds_max": 5,
+  "abords": [
+    {
+      "abord_id": "porte",
+      "effectif": 25,
+      "posture": "mur",
+      "voisins": ["poterne"],
+      "fortification_niveau": 1,
+      "terrain_fortification": 1.0,
+      "ravitaillement_coef": 1.0,
+      "fatigue_coef": 1.0,
+      "usure_coef": 1.0,
+      "preparation_coef": 1.15,
+      "commandant_grade": "sergent"
+    },
+    {
+      "abord_id": "poterne",
+      "effectif": 15,
+      "posture": "cognee",
+      "voisins": ["porte"],
+      "fortification_niveau": 0,
+      "terrain_fortification": 1.0,
+      "ravitaillement_coef": 1.0,
+      "fatigue_coef": 1.0,
+      "usure_coef": 1.0,
+      "preparation_coef": 1.15,
+      "commandant_grade": "sergent"
+    }
+  ],
+  "reserve": {
+    "effectif": 8,
+    "commandant_grade": "sergent"
+  },
+  "conditions_reserve": [
+    {
+      "ordre": 1,
+      "declencheur": {
+        "abord_id": "porte",
+        "metrique": "effectif_restant_relatif",
+        "comparateur": "<",
+        "seuil": 0.5
+      },
+      "action": {
+        "abord_cible": "porte",
+        "part_reserve": 0.75
+      }
+    }
+  ],
+  "vagues_par_round": [
+    {
+      "round": 1,
+      "vagues": {
+        "porte": { "souche": 40, "belier": 8 },
+        "poterne": { "ecorcheur": 12 }
+      }
+    },
+    {
+      "round": 2,
+      "vagues": {
+        "porte": { "souche": 20, "belier": 15 },
+        "poterne": { "ecorcheur": 8 }
+      }
+    },
+    {
+      "round": 3,
+      "vagues": {
+        "porte": { "belier": 20 }
+      }
+    }
+  ]
+}

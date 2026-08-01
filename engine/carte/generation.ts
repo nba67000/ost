@@ -139,17 +139,18 @@ function bornesGoulots(N: number, config: Balance): { min: number; max: number }
 }
 
 /**
- * Cible de fragilité maximale. `round(N × coef)` est l'objectif de design,
- * mais avec `k = couches[1]` enfants directs de la place forte, la fragilité
- * minimale atteignable est ≈ ceil((N-1-k) / k) — un enfant qui porte la
- * moyenne du reste de l'arbre. On prend le max des deux pour éviter de rejeter
- * des cartes structurellement inaméliorables.
+ * Cible de fragilité maximale. Deux composantes :
+ *   - plancher absolu : accepter au moins `fragilite_plancher_absolu` (petit N).
+ *   - proportion du royaume : `round(N × fragilite_max_coef)`.
+ * On prend le max des deux. Le plancher rend explicite le fait qu'à N=5,
+ * une fragilité de 3 (un lieu qui coupe la moitié de la carte) est acceptée
+ * par design.
  */
-function cibleFragilite(N: number, k_enfants_pf: number, config: Balance): number {
-  const cibleDesign = Math.round(N * config.carte.fragilite_max_coef);
-  if (k_enfants_pf <= 0) return cibleDesign;
-  const cibleStructurelle = Math.ceil((N - 1 - k_enfants_pf) / k_enfants_pf);
-  return Math.max(cibleDesign, cibleStructurelle);
+function cibleFragilite(N: number, config: Balance): number {
+  return Math.max(
+    config.carte.fragilite_plancher_absolu,
+    Math.round(N * config.carte.fragilite_max_coef),
+  );
 }
 
 function tenter(
@@ -242,7 +243,6 @@ function tenter(
   }
   const royaumeSet: ReadonlySet<LieuId> = new Set(tousRoyaume);
   const pfId = lieuParCouche[0]![0]!;
-  const kEnfantsPF = tailles[1] ?? 0;
 
   // Étape 5 : arbre — chaque lieu de couche k reçoit un parent en couche k-1 (ROUTE)
   const liens: Lien[] = [];
@@ -277,7 +277,7 @@ function tenter(
   }
 
   // --- Étape 6a — Phase A : minimiser la fragilité maximale ------------
-  const fragiliteCibleBase = cibleFragilite(N, kEnfantsPF, config);
+  const fragiliteCibleBase = cibleFragilite(N, config);
   const fragiliteCibleEffective = niveau >= 3 ? Number.POSITIVE_INFINITY : fragiliteCibleBase;
 
   let currentImpacts = calculerFragilite(royaumeSet, liens, pfId);

@@ -166,8 +166,15 @@ de fragilité, phase B ramène les goulots dans la fenêtre. La cible
 "croissante" naïve donne couches[1] = 1 : PF a un seul enfant direct, qui
 concentre TOUT le sous-arbre. La fragilité maximum est alors N-2 (60 %+),
 inatteignable à 30 %. Le bump garantit au moins 2 enfants directs de PF
-dès que `reste ≥ D`. Cap structurel de la cible en filet de sécurité pour
-les cas résiduels (E=2 à N=5).
+dès que `reste ≥ D`.
+
+**Plancher absolu de fragilité plutôt que cap structurel.** La contrainte
+finale est `max(fragilite_plancher_absolu, round(N × fragilite_max_coef))`.
+Le plancher rend l'intention explicite ("j'accepte qu'un lieu coupe jusqu'à
+3 autres, quelle que soit la taille") au lieu de résulter d'un calcul
+structurel implicite (`ceil((N-1-k)/k)`). Effet équivalent aux petites
+tailles, sémantique lisible. Écarté : biaiser E vers le bas à petit N —
+ça enlève une variable de tirage sans gain net.
 
 ---
 
