@@ -80,10 +80,13 @@ export function avancerJour(entree: EntreeJour): SortieJour {
     config,
   );
 
-  // 2. Paramètres horde.
-  const capacite = calculerCapacite(etat.joueurs, config);
+  // 2. Paramètres horde. `capacite` et `effectif_total_royaume` sont ici la
+  // même quantité : Σ effectif_commande des joueurs actifs. Le volume ne
+  // dépend PAS de la garnison placée (règle du volume indépendant du choix
+  // du joueur).
+  const effectifTotal = calculerCapacite(etat.joueurs, config);
   const nbExposes = compterExposes(etat.province);
-  const nbFronts = calculerNbFronts(capacite, nbExposes, config);
+  const nbFronts = calculerNbFronts(effectifTotal, nbExposes, config);
   const productionFosses = productionCumuleeFosses(etat.province, config);
   const volumeTotal =
     nbFronts === 0
@@ -91,8 +94,7 @@ export function avancerJour(entree: EntreeJour): SortieJour {
       : calculerVolume({
           production_cumulee_fosses: productionFosses,
           puissance_varhal: etat.puissance_varhal,
-          capacite,
-          nb_fronts: Math.max(1, nbFronts),
+          effectif_total_royaume: effectifTotal,
           config,
         });
 

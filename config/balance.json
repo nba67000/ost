@@ -92,9 +92,10 @@
   "horde": {
     "exposant_adaptation_population": 0.7,
     "fenetre_mesure_activite_jours": 7,
-    "plancher_intensite": 0.5,
-    "plafond_intensite_par_front": 2.5,
-    "production_par_fosse_par_jour": 10,
+    "plancher_coef": 0.6,
+    "plafond_coef": 2.5,
+    "pression_base": 1.5,
+    "production_par_fosse_par_jour": 2,
     "doctrines_total": 6,
     "doctrines_par_lune": 3,
     "diviseur_fronts": 8,

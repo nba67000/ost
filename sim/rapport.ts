@@ -39,7 +39,12 @@ export interface RapportCampagne {
   readonly usure_consommee: number;
   readonly equipements_detruits: number;
   readonly doctrines_actives: readonly NomDoctrine[];
-  readonly premier_choix: readonly { doctrine: NomDoctrine; taux: number; tours: number }[];
+  readonly premier_choix: readonly {
+    doctrine: NomDoctrine;
+    taux: number;
+    tours: number;
+    obtenus: number;
+  }[];
 }
 
 export function synthetiser(res: ResultatCampagne): RapportCampagne {
@@ -58,7 +63,12 @@ export function synthetiser(res: ResultatCampagne): RapportCampagne {
     (d) => {
       const stats = m.premier_choix_par_doctrine[d];
       const taux = stats.draft_tours === 0 ? 0 : stats.premier_choix_obtenus / stats.draft_tours;
-      return { doctrine: d, taux, tours: stats.draft_tours };
+      return {
+        doctrine: d,
+        taux,
+        tours: stats.draft_tours,
+        obtenus: stats.premier_choix_obtenus,
+      };
     },
   );
 
@@ -108,10 +118,12 @@ export function rendreTexte(r: RapportCampagne): string {
   lignes.push("Premier choix       :");
   for (const pc of r.premier_choix) {
     const pct = (pc.taux * 100).toFixed(0);
-    const alerte =
-      pc.taux < 0.5 && pc.tours >= 5 ? "  ← alerte : sous seuil de reconnaissance" : "";
+    // Seuil des 3-4 assauts observés de RULES §7 : une doctrine qui obtient
+    // son idéal moins de 4 fois sur toute la campagne devient méconnaissable.
+    const alerte = pc.obtenus < 4 ? "  ← alerte : sous le seuil de reconnaissance" : "";
     lignes.push(
-      `  ${NOMS_LISIBLES[pc.doctrine].padEnd(12)} ${pct.padStart(3)} %  (${pc.tours} jours ordinaires)${alerte}`,
+      `  ${NOMS_LISIBLES[pc.doctrine].padEnd(12)} ${pct.padStart(3)} %  ` +
+        `(${pc.obtenus}/${pc.tours} jours ordinaires)${alerte}`,
     );
   }
   return lignes.join("\n");

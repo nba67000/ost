@@ -122,58 +122,54 @@ describe("lieuxExposes", () => {
 // --- 2. Volume ------------------------------------------------------------
 
 describe("calculerVolume", () => {
-  it("clampe en bas quand la production est nulle", () => {
+  it("clampe en bas à plancher_coef × effectif_total quand la production est nulle", () => {
     const v = calculerVolume({
       production_cumulee_fosses: 0,
       puissance_varhal: 1,
-      capacite: 100,
-      nb_fronts: 3,
+      effectif_total_royaume: 100,
       config,
     });
-    expect(v).toBe(config.horde.plancher_intensite);
+    expect(v).toBe(config.horde.plancher_coef * 100);
   });
 
-  it("clampe en haut selon plafond_par_front × nb_fronts", () => {
+  it("clampe en haut à plafond_coef × effectif_total quand la horde est massive", () => {
     const v = calculerVolume({
       production_cumulee_fosses: 1_000_000,
       puissance_varhal: 1_000,
-      capacite: 10_000,
-      nb_fronts: 4,
+      effectif_total_royaume: 100,
       config,
     });
-    expect(v).toBe(config.horde.plafond_intensite_par_front * 4);
+    expect(v).toBe(config.horde.plafond_coef * 100);
   });
 
-  it("croît sous-linéairement avec la capacité", () => {
+  it("croît sous-linéairement avec l'effectif total du royaume", () => {
+    // À valeurs modérées où le plafond ne mord pas des deux côtés.
     const v1 = calculerVolume({
-      production_cumulee_fosses: 1,
+      production_cumulee_fosses: 2,
       puissance_varhal: 1,
-      capacite: 100,
-      nb_fronts: 100,
+      effectif_total_royaume: 100,
       config,
     });
     const v10 = calculerVolume({
-      production_cumulee_fosses: 1,
+      production_cumulee_fosses: 2,
       puissance_varhal: 1,
-      capacite: 1000,
-      nb_fronts: 100,
+      effectif_total_royaume: 1000,
       config,
     });
     expect(v10).toBeGreaterThan(v1);
-    // 10× la capacité doit produire beaucoup moins que 10× le volume (sous-linéaire).
+    // 10× l'effectif doit produire beaucoup moins que 10× le volume.
     expect(v10).toBeLessThan(v1 * 10);
   });
 
-  it("rejette nb_fronts < 1", () => {
-    expect(() =>
+  it("retourne 0 si effectif_total_royaume ≤ 0", () => {
+    expect(
       calculerVolume({
-        production_cumulee_fosses: 1,
+        production_cumulee_fosses: 5,
         puissance_varhal: 1,
-        capacite: 100,
-        nb_fronts: 0,
+        effectif_total_royaume: 0,
         config,
       }),
-    ).toThrow();
+    ).toBe(0);
   });
 });
 

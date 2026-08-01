@@ -250,20 +250,29 @@ function permuterLieutenants(
   return copie;
 }
 
+/**
+ * Ordre du draft pour un jour donné : rotation cyclique dérivée uniquement
+ * du jour. Aucune doctrine n'est structurellement première — chacune occupe
+ * la position 1 exactement 1/N du temps sur la lune.
+ *
+ * Les actives sont d'abord triées lexicographiquement (canonicalisation) :
+ * l'ordre d'entrée n'influe pas sur la rotation.
+ *
+ * Cette règle évite l'artefact du Fisher-Yates par jour : sur une carte à
+ * peu de fronts, la dernière tirée ne jouait jamais sa signature. Avec la
+ * rotation, sur 30 jours (27 ordinaires), chacune obtient son premier choix
+ * environ 9 fois sur 3 doctrines actives.
+ */
 function ordonnerDoctrines(
   actives: readonly NomDoctrine[],
-  graine_lune: bigint,
+  _graine_lune: bigint,
   jour: number,
 ): readonly NomDoctrine[] {
-  const rng = creerRng(graine_lune).deriver(`draft:${jour}`);
-  const copie = [...actives];
-  for (let i = copie.length - 1; i > 0; i--) {
-    const j = rng.entier(0, i);
-    const tmp = copie[i]!;
-    copie[i] = copie[j]!;
-    copie[j] = tmp;
-  }
-  return copie;
+  const base = [...actives].sort((a, b) => a.localeCompare(b, "en"));
+  const n = base.length;
+  if (n === 0) return [];
+  const decalage = (((jour - 1) % n) + n) % n;
+  return [...base.slice(decalage), ...base.slice(0, decalage)];
 }
 
 function sommeAttributions(m: ReadonlyMap<NomDoctrine, readonly LieuId[]>): number {

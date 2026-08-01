@@ -80,8 +80,9 @@ export interface Balance {
   readonly horde: {
     readonly exposant_adaptation_population: number;
     readonly fenetre_mesure_activite_jours: number;
-    readonly plancher_intensite: number;
-    readonly plafond_intensite_par_front: number;
+    readonly plancher_coef: number;
+    readonly plafond_coef: number;
+    readonly pression_base: number;
     readonly production_par_fosse_par_jour: number;
     readonly doctrines_total: number;
     readonly doctrines_par_lune: number;
@@ -268,8 +269,9 @@ export const SCHEMA: SchemaNoeud = {
   horde: {
     exposant_adaptation_population: "number",
     fenetre_mesure_activite_jours: "number",
-    plancher_intensite: "number",
-    plafond_intensite_par_front: "number",
+    plancher_coef: "number",
+    plafond_coef: "number",
+    pression_base: "number",
     production_par_fosse_par_jour: "number",
     doctrines_total: "number",
     doctrines_par_lune: "number",

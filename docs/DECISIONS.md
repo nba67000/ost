@@ -304,6 +304,52 @@ lieutenant) attendra que la simulation exige la distinction.
 
 ---
 
+## Horde — ancrage du volume sur l'effectif total
+
+Les bornes plancher/plafond sont **multiples de l'effectif attendu par
+front** :
+
+```
+effectif_attendu_par_front = effectif_total_royaume / nb_fronts
+plancher = plancher_coef × effectif_attendu_par_front × nb_fronts
+         = plancher_coef × effectif_total_royaume
+plafond  = plafond_coef  × effectif_total_royaume
+```
+
+`plancher_coef = 0.6`, `plafond_coef = 2.5`. Se lisent directement contre
+les ratios de bascule du banc (1.06 nu, 1.48 feu de guet fortifié, 2.0-2.4
+place forte). `plafond_coef = 2.5` = la horde peut au pire monter au ratio
+qui bascule la place forte.
+
+**Effectif du ROYAUME, jamais de la GARNISON.** Le volume ne dépend PAS de
+la répartition défensive choisie par le joueur. Sinon renforcer une
+position n'apporterait rien à cette position (elle attirerait plus
+d'ennemis) — la mauvaise incitation qu'on ne veut jamais.
+
+**`pression_base` par inversion.** Calibré pour que la population de
+référence (mélange représentatif, effectif ≈ 286) reçoive un volume
+ordinaire ≈ 1,2 × effectif. Formule :
+
+```
+volume_base = pression_base × production_cumulee_fosses × puissance_varhal
+volume      = volume_base × effectif ^ 0.7
+```
+
+Valeurs actuelles : `pression_base = 1.5`, `production_par_fosse_par_jour = 2`.
+Vérifié au banc `npm run volume:check` : sous-linéarité tient (volume/pop
+1.80 → 1.50 → 1.09 → 0.92 → 0.76 sur 50/100/286/500/1000), le plafond ne
+mord qu'aux très petites tailles (< 25 joueurs).
+
+**Draft cyclique plutôt que Fisher-Yates.** L'ordre des doctrines est
+une rotation dérivée du jour seul (`(jour − 1) mod N` sur les actives
+triées lex), pas un tirage. Chaque doctrine occupe la position 1
+exactement 1/N du temps — aucune ne devient structurellement méconnaissable
+à cause du hasard du tirage. Le seuil d'alerte devient cumulatif : moins de
+4 premiers choix obtenus sur toute la campagne = seuil des 3-4 assauts
+observés de RULES §7.
+
+---
+
 ## Questions ouvertes
 
 - Proportion de vétérans présents au centre à un instant donné. Tout le pilier de

@@ -627,24 +627,42 @@ le combat est mort. À vérifier en phase 1.
 ### Volume et adaptation
 
 ```
-volume_base = production_cumulee_des_fosses × puissance_varhal
-capacite    = Σ ( joueurs_actifs_7j × poids_grade )
-volume      = volume_base × capacite ^ exposant_adaptation_population
-volume      = clamp( volume, plancher_intensite, plafond_intensite_par_front × nb_fronts )
+effectif_total_royaume = Σ effectif_commande[grade] pour tout joueur actif
+volume_base            = pression_base × production_cumulee_des_fosses × puissance_varhal
+volume                 = volume_base × effectif_total_royaume ^ exposant_adaptation_population
+effectif_par_front     = effectif_total_royaume / nb_fronts
+volume                 = clamp( volume,
+                                plancher_coef × effectif_total_royaume,
+                                plafond_coef  × effectif_total_royaume )
 ```
 
-`capacite` est **la même mesure** que celle utilisée pour dimensionner la carte à §3.
-Une seule fonction, appelée partout — jamais deux définitions de "l'effectif".
+`effectif_total_royaume` est **la même mesure** que celle utilisée pour dimensionner la
+carte à §3. Une seule fonction, appelée partout — jamais deux définitions de "l'effectif".
+Elle ne dépend PAS de la garnison réellement placée : le volume ennemi ne doit jamais
+dépendre de ce que le joueur a choisi de mettre où, sinon renforcer une position
+n'apporte rien.
 
-Quatre règles impératives :
+`plancher_coef = 0.6` et `plafond_coef = 2.5` se lisent directement contre les ratios de
+bascule mesurés au banc de combat : 1.06 pour un abord nu, 1.48 pour un feu de guet
+fortifié, 2.0-2.4 pour la place forte. `plafond_coef = 2.5` signifie que la horde peut au
+pire atteindre le niveau qui bascule la place forte.
+
+`pression_base` est calibré par inversion sur une population de référence (mélange
+représentatif, effectif ≈ 286) pour que le volume ordinaire vaille environ 1,2 fois
+l'effectif total.
+
+Cinq règles impératives :
 
 1. **Sous-linéaire** : `exposant_adaptation_population ≈ 0,7`. Dix joueurs de plus doivent
    alléger la charge de chacun.
-2. **Mesurer la capacité, pas les têtes** : joueurs actifs sur 7 jours glissants, pondérés
-   par leur niveau réel.
-3. **Faire varier l'ampleur, pas la puissance** : jamais un Forgé plus fort. Plus
+2. **Mesurer l'effectif commandé, pas les têtes** : un joueur COMMANDE des hommes selon
+   son grade. `Σ effectif_commande[grade]` sur les joueurs actifs.
+3. **Indépendant de la garnison** : le volume ennemi n'utilise jamais l'effectif du
+   défenseur RÉELLEMENT présent sur un lieu — sinon renforcer un abord y attire plus
+   d'ennemis, ce qui punit la défense.
+4. **Faire varier l'ampleur, pas la puissance** : jamais un Forgé plus fort. Plus
    d'ennemis, sur plus de fronts simultanés. La difficulté est une pénurie d'attention.
-4. **Ne jamais s'adapter au succès récent** : une doctrine ne consulte jamais l'historique
+5. **Ne jamais s'adapter au succès récent** : une doctrine ne consulte jamais l'historique
    des victoires. Sinon les joueurs apprennent que réussir est puni.
 
 **L'adaptation doit être visible** : puissance de Varhal affichée, taille de la prochaine
@@ -701,9 +719,11 @@ Un lieu est *exposé* s'il est adjacent à un lieu tenu par la horde ou à une e
 
 - **Un assaut par jour et par front.** Jamais deux assauts sur le même lieu le même jour.
 - Les doctrines actives de la lune (`horde.doctrines_par_lune`) se partagent les fronts
-  du jour en **draft snake** : dans un ordre dérivé de la graine du jour, chacune pioche
-  à son tour son lieu le plus préféré parmi les exposés encore libres, jusqu'à saturer
-  `nb_fronts`.
+  du jour en **draft cyclique** : l'ordre est une rotation dérivée uniquement du jour
+  (`décalage = (jour − 1) mod N`), sur les actives triées lexicographiquement. Chaque
+  doctrine occupe la position 1 exactement 1/N du temps sur la lune — aucune n'est
+  structurellement première. Dans l'ordre du jour, chacune pioche à son tour son lieu le
+  plus préféré parmi les exposés encore libres, jusqu'à saturer `nb_fronts`.
 - Le volume total du jour est réparti entre les fronts **au prorata de leur importance
   topologique** : un goulot reçoit une part `horde.part_goulot` fois plus grosse.
 
