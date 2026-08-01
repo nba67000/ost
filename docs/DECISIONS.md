@@ -136,6 +136,22 @@ paramètres de config, pas la chance du RNG.
 **Entrée principale dérivée de la province perdue.** La pression majeure vient d'où l'on
 a cédé la lune précédente. Sans ce lien, `province_perdue_id` était un paramètre inerte.
 
+**Routes redondantes gloutonnes, plus de rejet sur les goulots.** Un plafond absolu de
+goulots sélectionnait mécaniquement contre les cartes profondes (à N=25, D=4 était retenu
+dans 2 % des essais seulement — l'arbre profond a naturellement plus de points
+d'articulation). Le pivot : borner les goulots proportionnellement à N (`round(N × coef)`)
+et faire converger les cartes-trop-goulot vers la fenêtre en **ajoutant des routes
+gloutonnes** (chaque route ajoutée choisit la paire qui supprime le plus de goulots).
+Les routes redondantes servent aussi le ravitaillement. Écartées : les routes tirées
+aléatoirement (n'auraient aucune propriété), le rejet-retirage (trop coûteux, sélectionne
+la topologie qui satisfait le critère par pur hasard).
+
+**Sentiers séparés des routes-redondantes.** Deux familles, deux rôles : les routes portent
+troupes ET ravitaillement, les sentiers seulement les troupes. Un sentier ajouté ne réduit
+donc aucun goulot (la connectivité de ravitaillement ne change pas). Compter les deux
+comme "cycles" mélangeait les fonctions. Corollaire : la cible historique de 65/35
+routes/sentiers ne mesurait rien — abandonnée.
+
 ---
 
 ## Questions ouvertes

@@ -3,6 +3,7 @@ import { chargerConfig } from "../../config/loader.js";
 import type { Balance } from "../../config/schema.js";
 import { genererCarte, type SortieGeneration } from "./generation.js";
 import type { LieuId, Province, ProvinceId } from "../types/carte.js";
+import { detecterGoulots } from "./goulots.js";
 
 let config: Balance;
 
@@ -57,6 +58,13 @@ function bfsRoutes(source: LieuId, p: Province): Map<LieuId, number> {
   return dist;
 }
 
+function bornesGoulots(N: number, cfg: Balance): { min: number; max: number } {
+  const min = Math.max(0, Math.round(N * cfg.carte.goulots_coef_min));
+  let max = Math.round(N * cfg.carte.goulots_coef_max);
+  if (max - min < cfg.carte.goulots_fenetre_min) max = min + cfg.carte.goulots_fenetre_min;
+  return { min, max };
+}
+
 describe("generation — déterminisme", () => {
   it("même graine + mêmes paramètres → même sortie", () => {
     const a = generer();
@@ -72,12 +80,12 @@ describe("generation — déterminisme", () => {
 });
 
 describe("generation — invariants topologiques", () => {
-  it("toutes les arêtes d'arbre sont des ROUTES, et il y en a exactement N-1", () => {
+  it("il y a au moins N-1 routes, et les routes sont toutes entre lieux royaume", () => {
     const s = generer();
     const routes = s.province.liens.filter((l) => l.nature === "route");
     const royaume = s.province.lieux.filter((l) => l.tenu_par === "royaume");
-    expect(routes.length).toBe(royaume.length - 1);
-    // Chaque route est entre deux lieux royaume
+    // >= N-1 (arbre couvrant + routes redondantes possibles)
+    expect(routes.length).toBeGreaterThanOrEqual(royaume.length - 1);
     const royaumeIds = new Set(royaume.map((l) => l.id));
     for (const r of routes) {
       expect(royaumeIds.has(r.a)).toBe(true);
@@ -105,10 +113,13 @@ describe("generation — invariants topologiques", () => {
     }
   });
 
-  it("nombre de goulots dans la fourchette du config", () => {
+  it("nombre de goulots sous le plafond (fenêtre dérivée des coefs)", () => {
     const s = generer();
-    expect(s.goulots.length).toBeGreaterThanOrEqual(config.carte.goulots_min);
-    expect(s.goulots.length).toBeLessThanOrEqual(config.carte.goulots_max);
+    const royaume = s.province.lieux.filter((l) => l.tenu_par === "royaume").length;
+    const { max } = bornesGoulots(royaume, config);
+    // On peut avoir moins que le min (accepté par construction : on n'ajoute
+    // pas de goulots artificiels). Mais on ne dépasse jamais le plafond.
+    expect(s.goulots.length).toBeLessThanOrEqual(max);
   });
 
   it("natures et nombre d'abords conformes", () => {
@@ -150,6 +161,38 @@ describe("generation — invariants topologiques", () => {
   });
 });
 
+describe("generation — routes redondantes", () => {
+  it("greedy fait descendre les goulots dans la fenêtre quand l'initial dépasse", () => {
+    // À grande N (25 royaume), le tree seul produit souvent > goulots_max.
+    // Vérifier que le résultat final est ≤ goulots_max.
+    const s = generer({ effectif_actif: 100 });
+    const royaume = s.province.lieux.filter((l) => l.tenu_par === "royaume").length;
+    const { max } = bornesGoulots(royaume, config);
+    expect(s.goulots.length).toBeLessThanOrEqual(max);
+  });
+
+  it("les routes redondantes sont enregistrées dans le diagnostic", () => {
+    // Sur un échantillon de graines, on doit voir au moins UNE carte avec
+    // nb_routes_redondantes > 0.
+    let aAuMoinsUne = false;
+    for (let g = 1n; g <= 30n && !aAuMoinsUne; g++) {
+      const s = generer({ graine: g, effectif_actif: 100 });
+      const retenu = s.diagnostic[s.diagnostic.length - 1]!;
+      if ((retenu.nb_routes_redondantes ?? 0) > 0) aAuMoinsUne = true;
+    }
+    expect(aAuMoinsUne).toBe(true);
+  });
+
+  it("la détection des goulots est cohérente entre le retour et un re-calcul externe", () => {
+    const s = generer();
+    const royaumeIds = new Set(
+      s.province.lieux.filter((l) => l.tenu_par === "royaume").map((l) => l.id),
+    );
+    const recalcul = detecterGoulots(royaumeIds, s.province.liens, s.province.place_forte_id);
+    expect([...s.goulots].sort()).toEqual([...recalcul].sort());
+  });
+});
+
 describe("generation — dimensionnement", () => {
   it("N compte les lieux royaume UNIQUEMENT, les fosses s'ajoutent par-dessus", () => {
     for (const pop of [2, 5, 15]) {
@@ -168,14 +211,13 @@ describe("generation — dimensionnement", () => {
   });
 
   it("dimensionnement à 2, 5, 15, 40, 60, 200 joueurs", () => {
-    // avec lieux_min=3, lieux_par_joueur_actif=0.33 :
     const cas: [number, number][] = [
-      [2, 3], // clamp min
-      [5, 3], // round(1.65) → 2, clamp min → 3
-      [15, 5], // round(4.95) → 5
-      [40, 13], // round(13.2) → 13
-      [60, 20], // round(19.8) → 20
-      [200, 25], // clamp max
+      [2, 3],
+      [5, 3],
+      [15, 5],
+      [40, 13],
+      [60, 20],
+      [200, 25],
     ];
     for (const [pop, attendu] of cas) {
       const s = generer({ effectif_actif: pop });
@@ -238,66 +280,11 @@ describe("generation — invariants divers", () => {
     }
     expect(vus.size).toBe(s.province.lieux.length);
   });
-});
 
-describe("generation — relâchement", () => {
-  it("le niveau de relâchement retourné est reproductible pour une graine donnée", () => {
-    // Config serré : goulots_min == goulots_max = 3 (fenêtre étroite) + essais_max = 1
-    // pour maximiser les chances de déclencher un relâchement.
-    const cfgSerre: Balance = {
-      ...config,
-      generation: { ...config.generation, essais_max: 1 },
-      carte: { ...config.carte, goulots_min: 3, goulots_max: 3 },
-    };
-    let trouve = false;
-    for (let g = 1n; g < 200n; g++) {
-      const s1 = genererCarte({
-        graine: g,
-        effectif_actif: 15,
-        province_id: "prov-relax" as ProvinceId,
-        province_perdue_id: null,
-        config: cfgSerre,
-      });
-      if (s1.niveau_relaxation > 0) {
-        const s2 = genererCarte({
-          graine: g,
-          effectif_actif: 15,
-          province_id: "prov-relax" as ProvinceId,
-          province_perdue_id: null,
-          config: cfgSerre,
-        });
-        expect(s2.niveau_relaxation).toBe(s1.niveau_relaxation);
-        expect(s2.essais_utilises).toBe(s1.essais_utilises);
-        expect(s2).toEqual(s1);
-        trouve = true;
-        break;
-      }
-    }
-    expect(trouve).toBe(true);
-  });
-
-  it("l'ordre des relâchements est croissant : on n'arrive à niveau k qu'après épuisement de niveau k-1", () => {
-    // Vérifie que essais_utilises est cohérent avec le niveau retourné.
-    // Si niveau_relaxation = k > 0, alors essais_utilises > k * essais_max
-    // (on a épuisé essais_max essais pour chaque niveau précédent avant d'atteindre k).
-    const cfgSerre: Balance = {
-      ...config,
-      generation: { ...config.generation, essais_max: 3 },
-      carte: { ...config.carte, goulots_min: 3, goulots_max: 3 },
-    };
-    for (let g = 1n; g < 200n; g++) {
-      const s = genererCarte({
-        graine: g,
-        effectif_actif: 15,
-        province_id: "prov-relax" as ProvinceId,
-        province_perdue_id: null,
-        config: cfgSerre,
-      });
-      if (s.niveau_relaxation > 0) {
-        const minEssais = s.niveau_relaxation * cfgSerre.generation.essais_max + 1;
-        expect(s.essais_utilises).toBeGreaterThanOrEqual(minEssais);
-        break;
-      }
+  it("aucun relâchement pour un config normal", () => {
+    for (let g = 1n; g <= 30n; g++) {
+      const s = generer({ graine: g, effectif_actif: 100 });
+      expect(s.niveau_relaxation).toBe(0);
     }
   });
 });

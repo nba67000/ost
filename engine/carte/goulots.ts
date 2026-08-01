@@ -1,21 +1,25 @@
 // Détection des goulots par simulation de suppression.
 // Un lieu est un goulot si sa perte déconnecte au moins deux autres lieux royaume
-// de la place forte, sur le graphe des routes seules. RULES §3 (vérification).
+// de la place forte, sur le graphe des routes seules. RULES §3.
 
-import type { LieuId, Lien, Province } from "../types/carte.js";
+import type { LieuId, Lien } from "../types/carte.js";
 
-export function detecterGoulots(province: Province): readonly LieuId[] {
-  const royaume = new Set<LieuId>(
-    province.lieux.filter((l) => l.tenu_par === "royaume").map((l) => l.id),
-  );
-  const routes = province.liens.filter((l) => l.nature === "route");
-  const pf = province.place_forte_id;
-
+/**
+ * Signature primitive — pratique pendant la génération, avant que la Province
+ * complète existe. Le caller fournit l'ensemble des IDs royaume, tous les liens
+ * (les sentiers seront filtrés), et l'id de la place forte.
+ */
+export function detecterGoulots(
+  royaumeIds: ReadonlySet<LieuId>,
+  liens: readonly Lien[],
+  place_forte_id: LieuId,
+): readonly LieuId[] {
+  const routes = liens.filter((l) => l.nature === "route");
   const goulots: LieuId[] = [];
-  for (const id of royaume) {
-    if (id === pf) continue;
-    const atteignables = compterAtteignables(pf, id, royaume, routes);
-    const inaccessibles = royaume.size - 1 - atteignables;
+  for (const id of royaumeIds) {
+    if (id === place_forte_id) continue;
+    const atteignables = compterAtteignables(place_forte_id, id, royaumeIds, routes);
+    const inaccessibles = royaumeIds.size - 1 - atteignables;
     if (inaccessibles >= 2) goulots.push(id);
   }
   return goulots;

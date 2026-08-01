@@ -110,12 +110,24 @@ Déterministe à partir d'une graine. Construction **par couches**, du cœur ver
 5. Arbre : chaque lieu de la couche k reçoit exactement un parent
    tiré dans la couche k-1. Toutes ces arêtes sont des ROUTES.
 
-6. Cycles : ajouter
-     nb_cycles = clamp( round( N / generation.cycles_par_lieux ),
-                        generation.cycles_min, generation.cycles_max )
-   arêtes supplémentaires entre lieux de couches identiques ou adjacentes.
-   Ces arêtes sont des SENTIERS. Nombre déterministe : les cycles doivent
-   croître avec N pour éviter que la carte ne devienne un arbre pur.
+6a. Routes redondantes : ajouter des arêtes ROUTES supplémentaires **de façon
+    gloutonne**, entre lieux de couches identiques ou adjacentes non déjà reliés.
+    À chaque itération, choisir l'arête qui, si ajoutée, supprimerait le plus
+    de goulots. S'arrêter dès que le nombre de goulots redescend dans la
+    fenêtre [ round(N × carte.goulots_coef_min),
+             round(N × carte.goulots_coef_max) ]
+    (avec un plancher à 0 et une fenêtre minimale de carte.goulots_fenetre_min),
+    ou dès qu'aucune arête candidate ne réduit plus de goulots.
+
+    Les routes redondantes sont ce qui donne la **redondance de ravitaillement** :
+    elles créent des chemins alternatifs pour le convoi.
+
+6b. Sentiers : ajouter
+     nb_sentiers = clamp( round( N / generation.sentiers_par_lieux ),
+                          generation.sentiers_min, generation.sentiers_max )
+    arêtes SENTIER, entre les candidats restants (mêmes règles de proximité).
+    Purement tactiques (mobilité de garnison), ne réduisent aucun goulot
+    puisque le ravitaillement ne passe que par les routes.
 
 7. Natures des lieux royaume : couche 0         = place_forte
                                couches D-1 et D = poste_avance
@@ -152,11 +164,9 @@ est approvisionnable au départ. Les sentiers ne sont que des raccourcis tactiqu
 
 ### Vérification et rejet
 
-Après génération, vérifier :
+Le nombre de goulots est désormais **contraint par construction** (étape 6a), pas par
+rejet a posteriori. La vérification résiduelle se limite à :
 
-- Nombre de **goulots** entre `carte.goulots_min` et `carte.goulots_max`. Un lieu est un
-  goulot si sa perte déconnecte au moins deux autres lieux de la place forte (calcul par
-  points d'articulation sur le graphe des routes).
 - Aucun lieu à plus de `D` sauts de la place forte.
 
 Si la vérification échoue : **retirer avec une graine dérivée**, jusqu'à
@@ -165,14 +175,14 @@ Si la vérification échoue : **retirer avec une graine dérivée**, jusqu'à
 Au-delà, **relâcher les contraintes dans cet ordre fixe**, une seule à la fois, et
 recommencer :
 
-1. Fourchette de goulots élargie à `[1, carte.goulots_max + 1]`
-2. Nombre de cycles ramené à 1
-3. `D` ramené à 3
+1. Nombre de sentiers ramené à 1
+2. `D` ramené à 3
 
-Cet ordre est **normatif** : il garantit qu'une génération échoue toujours de la même
-façon. Un déclenchement fréquent du relâchement signale que les paramètres du config sont
-mal réglés, jamais qu'un tirage était infaisable — les étapes 2 et 3 garantissent la
-faisabilité arithmétique dès le départ.
+Ce court ordre est **normatif**. Les rejets restants sont soit `arithmetique_impossible`
+(bornes de config incohérentes), soit `profondeur_depassee` (défense — la construction
+par couches est censée l'empêcher). Un déclenchement fréquent du relâchement signale
+que les paramètres du config sont mal réglés, jamais qu'un tirage était infaisable —
+les étapes 2 et 3 garantissent la faisabilité arithmétique dès le départ.
 
 ### Terrain
 

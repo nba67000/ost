@@ -18,8 +18,9 @@
     "lieux_max": 25,
     "profondeur_entree_place_forte_min": 3,
     "profondeur_entree_place_forte_max": 4,
-    "goulots_min": 2,
-    "goulots_max": 4,
+    "goulots_coef_min": 0.12,
+    "goulots_coef_max": 0.3,
+    "goulots_fenetre_min": 2,
     "entrees_min": 1,
     "entrees_max": 3,
     "abords": { "feu_de_guet": 2, "poste_avance": 1, "fosse": 2 }
@@ -141,9 +142,9 @@
   "generation": {
     "essais_max": 50,
     "part_terrain_dominant": 0.6,
-    "cycles_min": 2,
-    "cycles_max": 6,
-    "cycles_par_lieux": 5,
+    "sentiers_min": 2,
+    "sentiers_max": 6,
+    "sentiers_par_lieux": 5,
     "fosses_min": 1,
     "fosses_max": 3
   },

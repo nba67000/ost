@@ -34,6 +34,7 @@ interface StatCarte {
   goulotsSomme: number;
   profondeurMaxSomme: number;
   routesSomme: number;
+  routesRedondantesSomme: number;
   sentiersSomme: number;
   relaxation: [number, number, number, number];
 }
@@ -41,8 +42,8 @@ interface StatCarte {
 interface StatDiagnostic {
   readonly pop: number;
   essaisTotal: number;
-  D_tire: Map<number, number>; // valeur → occurrences (tous essais)
-  D_retenu: Map<number, number>; // valeur → occurrences (essais retenus)
+  D_tire: Map<number, number>;
+  D_retenu: Map<number, number>;
   motifs: Record<MotifRejet | "retenu", number>;
 }
 
@@ -91,6 +92,7 @@ for (const pop of POPULATIONS) {
     goulotsSomme: 0,
     profondeurMaxSomme: 0,
     routesSomme: 0,
+    routesRedondantesSomme: 0,
     sentiersSomme: 0,
     relaxation: [0, 0, 0, 0],
   };
@@ -101,8 +103,6 @@ for (const pop of POPULATIONS) {
     D_retenu: new Map(),
     motifs: {
       arithmetique_impossible: 0,
-      goulots_trop_peu: 0,
-      goulots_trop_nombreux: 0,
       profondeur_depassee: 0,
       retenu: 0,
     },
@@ -130,6 +130,8 @@ for (const pop of POPULATIONS) {
     carte.sentiersSomme += s.province.liens.filter((l) => l.nature === "sentier").length;
     carte.relaxation[s.niveau_relaxation]++;
     carte.profondeurMaxSomme += profondeurRoutes(s.province.place_forte_id, s.province);
+    const retenu = s.diagnostic[s.diagnostic.length - 1]!;
+    carte.routesRedondantesSomme += retenu.nb_routes_redondantes ?? 0;
 
     for (const d of s.diagnostic) {
       diag.essaisTotal++;
@@ -152,23 +154,27 @@ const lignes: string[] = [];
 lignes.push(`Distribution sur ${tirages} tirages par taille de population.`);
 lignes.push("");
 lignes.push(
-  "Pop.  Lieux (min/moy/max)  Fosses (min/moy/max)  Prof (moy)  Goulots (moy)  Rt/Sent    Relaxation 0/1/2/3",
+  "Pop.  Lieux (moy)  Fosses (moy)  Prof (moy)  Goulots (moy)  Routes/Redond/Sentiers  Relax 0/1/2/3",
 );
-lignes.push("-".repeat(110));
+lignes.push("-".repeat(115));
 for (const s of cartes) {
   const moyL = (s.lieuxSomme / tirages).toFixed(1);
   const moyF = (s.fossesSomme / tirages).toFixed(2);
   const moyP = (s.profondeurMaxSomme / tirages).toFixed(2);
   const moyG = (s.goulotsSomme / tirages).toFixed(2);
-  const totalLiens = s.routesSomme + s.sentiersSomme;
-  const partR = ((s.routesSomme / totalLiens) * 100).toFixed(0);
-  const partS = ((s.sentiersSomme / totalLiens) * 100).toFixed(0);
+  const routesArbre = s.routesSomme - s.routesRedondantesSomme;
+  const moyArbre = (routesArbre / tirages).toFixed(1);
+  const moyRedond = (s.routesRedondantesSomme / tirages).toFixed(1);
+  const moySentiers = (s.sentiersSomme / tirages).toFixed(1);
   const relaxTaux = s.relaxation.map((n) => `${((n / tirages) * 100).toFixed(0)}%`).join("/");
   lignes.push(
     `${String(s.pop).padStart(4)}    ` +
-      `${String(s.lieuxMin).padStart(2)}/${moyL.padStart(5)}/${String(s.lieuxMax).padStart(2)}         ` +
-      `${String(s.fossesMin).padStart(2)}/${moyF.padStart(4)}/${String(s.fossesMax).padStart(2)}         ` +
-      `${moyP.padStart(4)}         ${moyG.padStart(4)}       ${partR.padStart(2)}%/${partS.padStart(2)}%       ${relaxTaux}`,
+      `${moyL.padStart(5)}       ` +
+      `${moyF.padStart(4)}       ` +
+      `${moyP.padStart(5)}       ` +
+      `${moyG.padStart(5)}       ` +
+      `${moyArbre.padStart(4)}/${moyRedond.padStart(4)}/${moySentiers.padStart(4)}          ` +
+      `${relaxTaux}`,
   );
 }
 
@@ -177,9 +183,9 @@ lignes.push("");
 lignes.push("Diagnostic — instrumentation temporaire pour comprendre la sélection.");
 lignes.push("");
 lignes.push(
-  "Pop.  Essais/tirage   D tiré (dist)          D retenu (dist)         Rejets/essai : arith / g_peu / g_nb / prof",
+  "Pop.  Essais/tirage   D tiré (dist)          D retenu (dist)         Rejets/essai : arith / prof",
 );
-lignes.push("-".repeat(130));
+lignes.push("-".repeat(115));
 for (const d of diags) {
   const essaisMoy = (d.essaisTotal / tirages).toFixed(2);
   const distStr = (m: Map<number, number>, tot: number): string => {
@@ -196,8 +202,7 @@ for (const d of diags) {
       `${essaisMoy.padStart(4)}           ` +
       `${dTire.padEnd(20)}   ` +
       `${dRetenu.padEnd(20)}   ` +
-      `${taux(d.motifs.arithmetique_impossible)} / ${taux(d.motifs.goulots_trop_peu)} / ` +
-      `${taux(d.motifs.goulots_trop_nombreux)} / ${taux(d.motifs.profondeur_depassee)}`,
+      `${taux(d.motifs.arithmetique_impossible)} / ${taux(d.motifs.profondeur_depassee)}`,
   );
 }
 

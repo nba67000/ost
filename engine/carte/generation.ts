@@ -27,17 +27,16 @@ export interface EntreeGeneration {
 }
 
 /** Motif de rejet d'un essai de génération. */
-export type MotifRejet =
-  "arithmetique_impossible" | "goulots_trop_peu" | "goulots_trop_nombreux" | "profondeur_depassee";
+export type MotifRejet = "arithmetique_impossible" | "profondeur_depassee";
 
-/** Trace d'un essai : ce qui a été tiré, et pourquoi il a été retenu ou rejeté. */
+/** Trace d'un essai : ce qui a été tiré et construit, et le motif de rejet éventuel. */
 export interface DiagnosticEssai {
   readonly niveau: 0 | 1 | 2 | 3;
-  /** Index de l'essai dans son niveau, 0-based. */
   readonly essai: number;
   readonly D_tire: number | null;
   readonly E_tire: number | null;
-  readonly nb_cycles: number | null;
+  readonly nb_routes_redondantes: number | null;
+  readonly nb_sentiers: number | null;
   readonly nb_goulots: number | null;
   /** null = essai retenu. */
   readonly motif_rejet: MotifRejet | null;
@@ -45,16 +44,9 @@ export interface DiagnosticEssai {
 
 export interface SortieGeneration {
   readonly province: Province;
-  /** Nombre total d'essais consommés, tous niveaux de relâchement confondus. */
   readonly essais_utilises: number;
-  /** 0 = aucun relâchement, 1..3 = niveaux successifs appliqués. Voir RULES §3. */
   readonly niveau_relaxation: 0 | 1 | 2 | 3;
-  /** Lieux identifiés comme goulots dans la province retenue. */
   readonly goulots: readonly LieuId[];
-  /**
-   * Trace de tous les essais consommés (rejets + essai retenu en dernière position).
-   * Instrumentation destinée à `carte:stats` pour comprendre la sélection.
-   */
   readonly diagnostic: readonly DiagnosticEssai[];
 }
 
@@ -136,6 +128,15 @@ type ResultatEssai =
       readonly diagnostic: DiagnosticEssai;
     };
 
+/** Bornes de goulots dérivées de N, avec plancher et fenêtre minimale. */
+function bornesGoulots(N: number, config: Balance): { min: number; max: number } {
+  const min = Math.max(0, Math.round(N * config.carte.goulots_coef_min));
+  let max = Math.round(N * config.carte.goulots_coef_max);
+  const fenetre = config.carte.goulots_fenetre_min;
+  if (max - min < fenetre) max = min + fenetre;
+  return { min, max };
+}
+
 function tenter(
   rng: RNG,
   N: number,
@@ -145,22 +146,19 @@ function tenter(
 ): ResultatEssai {
   const { config } = entree;
 
-  // Application des relâchements.
-  const cyclesMinCfg = niveau >= 2 ? 1 : config.generation.cycles_min;
-  const cyclesMaxCfg = niveau >= 2 ? 1 : config.generation.cycles_max;
-  const profondeurMax = niveau >= 3 ? 3 : config.carte.profondeur_entree_place_forte_max;
-  const goulotsMinBase = niveau >= 1 ? 1 : config.carte.goulots_min;
-  // Cap structurel : dans une chaîne de N lieux, il y a au plus N-3 goulots
-  // (chaque intérieur qui déconnecte >= 2 lieux royaume). Pour N ≤ 4, on ne
-  // peut pas exiger 2 goulots ; on accepte donc silencieusement moins, sans
-  // compter cela comme un relâchement.
-  const goulotsMin = Math.min(goulotsMinBase, Math.max(0, N - 3));
-  const goulotsMax = niveau >= 1 ? config.carte.goulots_max + 1 : config.carte.goulots_max;
+  // Application des relâchements — seuls la profondeur et le nombre de sentiers
+  // sont relâchables. Les bornes de goulots ne sont plus un critère de rejet.
+  const sentiersMinCfg = niveau >= 1 ? 1 : config.generation.sentiers_min;
+  const sentiersMaxCfg = niveau >= 1 ? 1 : config.generation.sentiers_max;
+  const profondeurMax = niveau >= 2 ? 3 : config.carte.profondeur_entree_place_forte_max;
+
+  const { max: goulotsCible } = bornesGoulots(N, config);
 
   const rejete = (partiel: {
     D_tire: number | null;
     E_tire: number | null;
-    nb_cycles: number | null;
+    nb_routes_redondantes: number | null;
+    nb_sentiers: number | null;
     nb_goulots: number | null;
     motif_rejet: MotifRejet;
   }): ResultatEssai => ({
@@ -175,14 +173,15 @@ function tenter(
     return rejete({
       D_tire: null,
       E_tire: null,
-      nb_cycles: null,
+      nb_routes_redondantes: null,
+      nb_sentiers: null,
       nb_goulots: null,
       motif_rejet: "arithmetique_impossible",
     });
   }
-  // Cap dMin à dMax : pour les petites cartes (N=3), la profondeur cible n'est
-  // structurellement pas atteignable. On accepte D < dMin sans le compter comme
-  // un rejet — c'est une conséquence de la taille, pas un échec du tirage.
+  // Cap dMin à dMax : pour les petites cartes, la profondeur cible n'est
+  // structurellement pas atteignable. On accepte D < dMin sans le compter
+  // comme un rejet.
   const dMinEffectif = Math.min(dMin, dMax);
   const D = rng.entier(dMinEffectif, dMax);
 
@@ -193,7 +192,8 @@ function tenter(
     return rejete({
       D_tire: D,
       E_tire: null,
-      nb_cycles: null,
+      nb_routes_redondantes: null,
+      nb_sentiers: null,
       nb_goulots: null,
       motif_rejet: "arithmetique_impossible",
     });
@@ -206,7 +206,8 @@ function tenter(
     return rejete({
       D_tire: D,
       E_tire: E,
-      nb_cycles: null,
+      nb_routes_redondantes: null,
+      nb_sentiers: null,
       nb_goulots: null,
       motif_rejet: "arithmetique_impossible",
     });
@@ -224,6 +225,8 @@ function tenter(
     }
     lieuParCouche.push(couche);
   }
+  const royaumeSet: ReadonlySet<LieuId> = new Set(tousRoyaume);
+  const pfId = lieuParCouche[0]![0]!;
 
   // Étape 5 : arbre — chaque lieu de couche k reçoit un parent en couche k-1 (ROUTE)
   const liens: Lien[] = [];
@@ -235,14 +238,8 @@ function tenter(
     }
   }
 
-  // Étape 6 : cycles — SENTIERS entre couches identiques ou adjacentes.
-  // Nombre déterministe fonction de N (voir RULES §3), pour que les cycles
-  // croissent avec la carte au lieu de rester fixes.
-  const nbCyclesCible = clampInt(
-    Math.round(N / config.generation.cycles_par_lieux),
-    cyclesMinCfg,
-    cyclesMaxCfg,
-  );
+  // Candidats pour arêtes supplémentaires : paires même couche ou couches
+  // adjacentes, pas déjà dans l'arbre.
   const existantes = new Set<string>(liens.map((l) => paireCle(l.a, l.b)));
   const candidates: [LieuId, LieuId][] = [];
   for (let k = 0; k <= D; k++) {
@@ -263,13 +260,51 @@ function tenter(
       }
     }
   }
-  let nbCyclesReels = 0;
-  for (let i = 0; i < nbCyclesCible && candidates.length > 0; i++) {
+
+  // Étape 6a : routes redondantes — ajoutées de façon gloutonne pour faire
+  // descendre les goulots dans la fenêtre. Chaque itération choisit l'arête
+  // qui supprime le plus de goulots. S'arrête dès que goulots <= cible, ou
+  // qu'aucune arête candidate ne réduit plus de goulots.
+  let goulotsCourants = detecterGoulots(royaumeSet, liens, pfId);
+  let nbRoutesRedondantes = 0;
+  while (goulotsCourants.length > goulotsCible && candidates.length > 0) {
+    let meilleurIdx = -1;
+    let meilleureReduction = 0;
+    for (let idx = 0; idx < candidates.length; idx++) {
+      const [u, v] = candidates[idx]!;
+      liens.push({ a: u, b: v, nature: "route" });
+      const nvxGoulots = detecterGoulots(royaumeSet, liens, pfId);
+      liens.pop();
+      const reduction = goulotsCourants.length - nvxGoulots.length;
+      if (reduction > meilleureReduction) {
+        meilleureReduction = reduction;
+        meilleurIdx = idx;
+      }
+    }
+    if (meilleurIdx === -1) break;
+    const [u, v] = candidates[meilleurIdx]!;
+    liens.push({ a: u, b: v, nature: "route" });
+    existantes.add(paireCle(u, v));
+    candidates.splice(meilleurIdx, 1);
+    goulotsCourants = detecterGoulots(royaumeSet, liens, pfId);
+    nbRoutesRedondantes++;
+  }
+
+  // Étape 6b : sentiers — nombre déterministe fonction de N, purement tactiques
+  // (ne réduisent aucun goulot puisque le ravitaillement ne passe que par les
+  // routes). Tirés parmi les candidats restants.
+  const nbSentiersCible = clampInt(
+    Math.round(N / config.generation.sentiers_par_lieux),
+    sentiersMinCfg,
+    sentiersMaxCfg,
+  );
+  let nbSentiersReels = 0;
+  for (let i = 0; i < nbSentiersCible && candidates.length > 0; i++) {
     const idx = rng.entier(0, candidates.length - 1);
     const [u, v] = candidates.splice(idx, 1)[0]!;
     existantes.add(paireCle(u, v));
     liens.push({ a: u, b: v, nature: "sentier" });
-    nbCyclesReels++;
+    nbSentiersReels++;
   }
 
   // Étape 7 : natures des lieux royaume
@@ -322,7 +357,7 @@ function tenter(
     }
   }
 
-  // Étape 10 : Fosses (nature "fosse", tenues par la horde)
+  // Étape 10 : Fosses
   const nbFosses = rng.entier(config.generation.fosses_min, config.generation.fosses_max);
   const fosses: LieuId[] = [];
   const entrees = lieuParCouche[D]!;
@@ -341,37 +376,48 @@ function tenter(
     liens.push({ a: entree, b: idF, nature: "sentier" });
   }
 
-  // Étape 11 : entrée principale (dérivée de province_perdue_id, stable entre lunes)
+  // Étape 11 : entrée principale
   const ctxPrincipale = `entree-principale-${entree.province_perdue_id ?? "aucune"}`;
   const rngPrincipale = rng.deriver(ctxPrincipale);
   const entree_principale = entrees[rngPrincipale.entier(0, entrees.length - 1)]!;
 
   // Étape 12 : secteurs
   const secteurParLieu = new Map<LieuId, SecteurId | null>();
-  const pfId = lieuParCouche[0]![0]!;
   if (entree.effectif_actif >= config.grades.seuils_effectif.capitaine) {
-    const parentDe = new Map<LieuId, LieuId>();
+    // Sur le graphe des routes, la place forte a plusieurs enfants directs.
+    // Un secteur = un sous-arbre issu d'un de ces enfants. Comme la carte
+    // contient maintenant des routes redondantes (cycles), on utilise un
+    // parcours BFS routes-only depuis la PF, en attribuant chaque lieu au
+    // secteur du premier enfant PF rencontré sur son chemin le plus court.
+    const voisinsRoutes = new Map<LieuId, LieuId[]>();
+    for (const idL of tousRoyaume) voisinsRoutes.set(idL, []);
     for (const lien of liens) {
       if (lien.nature !== "route") continue;
-      parentDe.set(lien.b, lien.a);
+      voisinsRoutes.get(lien.a)!.push(lien.b);
+      voisinsRoutes.get(lien.b)!.push(lien.a);
     }
-    const enfantsPF: LieuId[] = [];
-    for (const [enfant, parent] of parentDe) {
-      if (parent === pfId) enfantsPF.push(enfant);
-    }
+    const secteurDe = new Map<LieuId, SecteurId | null>();
+    secteurDe.set(pfId, null);
+    const enfantsPF: LieuId[] = [...(voisinsRoutes.get(pfId) ?? [])];
     let compteurS = 1;
     for (const racine of enfantsPF) {
+      if (secteurDe.has(racine)) continue;
       const sid = idSecteur(compteurS++);
-      const pile: LieuId[] = [racine];
-      while (pile.length > 0) {
-        const cur = pile.pop()!;
-        secteurParLieu.set(cur, sid);
-        for (const [enfant, parent] of parentDe) {
-          if (parent === cur) pile.push(enfant);
+      const file: LieuId[] = [racine];
+      secteurDe.set(racine, sid);
+      let head = 0;
+      while (head < file.length) {
+        const cur = file[head++]!;
+        for (const v of voisinsRoutes.get(cur) ?? []) {
+          if (v === pfId) continue;
+          if (!secteurDe.has(v)) {
+            secteurDe.set(v, sid);
+            file.push(v);
+          }
         }
       }
     }
-    secteurParLieu.set(pfId, null);
+    for (const [idL, sid] of secteurDe) secteurParLieu.set(idL, sid);
   } else {
     const sid = idSecteur(1);
     for (const idL of tousRoyaume) {
@@ -414,26 +460,8 @@ function tenter(
     fosses,
   };
 
-  // Vérification.
-  const goulots = detecterGoulots(province);
-  if (goulots.length < goulotsMin) {
-    return rejete({
-      D_tire: D,
-      E_tire: E,
-      nb_cycles: nbCyclesReels,
-      nb_goulots: goulots.length,
-      motif_rejet: "goulots_trop_peu",
-    });
-  }
-  if (goulots.length > goulotsMax) {
-    return rejete({
-      D_tire: D,
-      E_tire: E,
-      nb_cycles: nbCyclesReels,
-      nb_goulots: goulots.length,
-      motif_rejet: "goulots_trop_nombreux",
-    });
-  }
+  // Vérification résiduelle : profondeur uniquement. Les goulots sont
+  // désormais contraints par construction (étape 6a), pas par rejet.
   const distances = bfsRoutes(pfId, province);
   for (const l of lieux) {
     if (l.tenu_par !== "royaume") continue;
@@ -442,8 +470,9 @@ function tenter(
       return rejete({
         D_tire: D,
         E_tire: E,
-        nb_cycles: nbCyclesReels,
-        nb_goulots: goulots.length,
+        nb_routes_redondantes: nbRoutesRedondantes,
+        nb_sentiers: nbSentiersReels,
+        nb_goulots: goulotsCourants.length,
         motif_rejet: "profondeur_depassee",
       });
     }
@@ -452,14 +481,15 @@ function tenter(
   return {
     retenu: true,
     province,
-    goulots,
+    goulots: goulotsCourants,
     diagnostic: {
       niveau,
       essai: indexEssai,
       D_tire: D,
       E_tire: E,
-      nb_cycles: nbCyclesReels,
-      nb_goulots: goulots.length,
+      nb_routes_redondantes: nbRoutesRedondantes,
+      nb_sentiers: nbSentiersReels,
+      nb_goulots: goulotsCourants.length,
       motif_rejet: null,
     },
   };

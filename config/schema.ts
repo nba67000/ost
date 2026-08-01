@@ -23,8 +23,9 @@ export interface Balance {
     readonly lieux_max: number;
     readonly profondeur_entree_place_forte_min: number;
     readonly profondeur_entree_place_forte_max: number;
-    readonly goulots_min: number;
-    readonly goulots_max: number;
+    readonly goulots_coef_min: number;
+    readonly goulots_coef_max: number;
+    readonly goulots_fenetre_min: number;
     readonly entrees_min: number;
     readonly entrees_max: number;
     readonly abords: {
@@ -119,9 +120,9 @@ export interface Balance {
   readonly generation: {
     readonly essais_max: number;
     readonly part_terrain_dominant: number;
-    readonly cycles_min: number;
-    readonly cycles_max: number;
-    readonly cycles_par_lieux: number;
+    readonly sentiers_min: number;
+    readonly sentiers_max: number;
+    readonly sentiers_par_lieux: number;
     readonly fosses_min: number;
     readonly fosses_max: number;
   };
@@ -154,8 +155,9 @@ export const SCHEMA: SchemaNoeud = {
     lieux_max: "number",
     profondeur_entree_place_forte_min: "number",
     profondeur_entree_place_forte_max: "number",
-    goulots_min: "number",
-    goulots_max: "number",
+    goulots_coef_min: "number",
+    goulots_coef_max: "number",
+    goulots_fenetre_min: "number",
     entrees_min: "number",
     entrees_max: "number",
     abords: {
@@ -296,9 +298,9 @@ export const SCHEMA: SchemaNoeud = {
   generation: {
     essais_max: "number",
     part_terrain_dominant: "number",
-    cycles_min: "number",
-    cycles_max: "number",
-    cycles_par_lieux: "number",
+    sentiers_min: "number",
+    sentiers_max: "number",
+    sentiers_par_lieux: "number",
     fosses_min: "number",
     fosses_max: "number",
   },
