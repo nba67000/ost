@@ -9,7 +9,7 @@ import type { Balance } from "../../config/schema.js";
 import type { JoueurId } from "../../engine/types/garnison.js";
 import type { EtatCampagne, OrdreJoueur } from "../../engine/types/campagne.js";
 
-export type NomPolitique = "assidu" | "irregulier" | "egoiste" | "deserteur";
+export type NomPolitique = "assidu" | "irregulier" | "egoiste" | "deserteur" | "concentrateur";
 
 export interface EntreePolitique {
   readonly etat: EtatCampagne;

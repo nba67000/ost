@@ -15,6 +15,7 @@
     "combat:dominance": "tsx sim/combat-dominance.ts",
     "campagne": "tsx sim/campagne-cli.ts",
     "campagne:diag": "tsx sim/campagne-diag.ts",
+    "plafond:defense": "tsx sim/plafond-defense.ts",
     "volume:check": "tsx sim/volume-check.ts",
     "test": "vitest run",
     "test:watch": "vitest",

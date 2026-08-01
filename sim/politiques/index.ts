@@ -3,16 +3,19 @@ export { assidu } from "./assidu.js";
 export { irregulier } from "./irregulier.js";
 export { egoiste } from "./egoiste.js";
 export { deserteur } from "./deserteur.js";
+export { concentrateur } from "./concentrateur.js";
 
 import type { NomPolitique, Politique } from "./types.js";
 import { assidu } from "./assidu.js";
 import { irregulier } from "./irregulier.js";
 import { egoiste } from "./egoiste.js";
 import { deserteur } from "./deserteur.js";
+import { concentrateur } from "./concentrateur.js";
 
 export const POLITIQUES: Readonly<Record<NomPolitique, Politique>> = {
   assidu,
   irregulier,
   egoiste,
   deserteur,
+  concentrateur,
 };

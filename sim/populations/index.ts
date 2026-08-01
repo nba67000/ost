@@ -69,8 +69,28 @@ export const STRESS_DESERTEURS: Population = {
   ],
 };
 
+/**
+ * Politique de diagnostic — 100 % concentrateur.
+ * Sert à mesurer le PLAFOND défensif face au calibrage actuel de la horde.
+ * NE représente pas un jeu réel : hypothèses de redéploiement libre.
+ */
+export const PUR_CONCENTRATEUR: Population = {
+  nom: "pur_concentrateur",
+  description:
+    "Diagnostic : chaque joueur est concentrateur — redéploie librement chaque jour, garnit uniquement les exposés, priorise les goulots.",
+  joueurs: [
+    { grade: "general", politique: "concentrateur", quantite: 1 },
+    { grade: "capitaine", politique: "concentrateur", quantite: 2 },
+    { grade: "sergent", politique: "concentrateur", quantite: 4 },
+    { grade: "caporal", politique: "concentrateur", quantite: 6 },
+    { grade: "soldat", politique: "concentrateur", quantite: 8 },
+    { grade: "recrue", politique: "concentrateur", quantite: 10 },
+  ],
+};
+
 export const POPULATIONS: Readonly<Record<string, Population>> = {
   assidus_purs: ASSIDUS_PURS,
   melange_representatif: MELANGE_REPRESENTATIF,
   stress_deserteurs: STRESS_DESERTEURS,
+  pur_concentrateur: PUR_CONCENTRATEUR,
 };
