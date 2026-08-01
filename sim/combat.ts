@@ -220,6 +220,7 @@ const abords0: EtatAbord[] = scen.abords.map((a) => ({
   commandant_grade: a.commandant_grade,
   rompu: false,
   flanque_ce_round: false,
+  reserve_recente: false,
 }));
 
 const etat_initial: EtatRound = {

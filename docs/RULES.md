@@ -458,6 +458,45 @@ seuil_rupture_abord × effectif_initial_de_cet_abord_au_début_de_l_assaut
 **Place forte** : nombre d'abords tiré entre `abords_place_forte_min` et
 `abords_place_forte_max` (3 à 4) par la graine.
 
+### Brèche
+
+Un abord qui a cédé ne bouche pas la faille. À chaque round suivant sa rupture,
+la vague dirigée vers cet abord n'engage plus la fortification : elle
+**entre dans l'intérieur du lieu**.
+
+L'intérieur se défend, dans cet ordre :
+1. La **réserve non encore engagée**.
+2. Les **garnisons des abords restants**, pour absorber le débordement.
+
+Combat intérieur :
+- **Aucun bonus de fortification.**
+- **Aucun bonus de posture.**
+- Coordination du commandant du lieu appliquée normalement.
+- Formule de pertes identique aux abords (proportionnelles simultanées).
+- Les pertes défenseur sont **absorbées d'abord par la réserve**, puis
+  distribuées aux garnisons d'abords non-rompus au prorata de leur effectif.
+
+**Si l'intérieur est vide ou tombe, le lieu tombe**, même si un abord tient
+encore. En pratique : tous les abords rompus, ou l'intérieur (réserve +
+garnisons d'abords non-rompus) réduit à zéro.
+
+Le malus de flanc sur les abords voisins d'un abord rompu subsiste.
+
+### Malus d'engagement de la réserve
+
+Une réserve engagée en cours d'assaut arrive en désordre. **Au round où
+elle entre en ligne** (round N+1 après l'engagement au round N), l'abord
+qui l'a reçue subit un coefficient `combat.malus_engagement_reserve` (0.8)
+sur sa force effective. Le malus ne dure qu'un round.
+
+Être en place au début vaut mieux que réagir à effectif égal.
+
+### Plafond de réserve
+
+À la construction de l'ordre, la réserve ne peut pas excéder
+`combat.part_reserve_max` (0.4) de la garnison totale du lieu.
+Garde-fou grossier : trop en réserve, c'est trop peu sur les murs.
+
 ### Réserve conditionnelle
 
 Le gradé garde des hommes en arrière et écrit les **conditions** de leur engagement. Les

@@ -21,7 +21,12 @@ const TYPES: readonly TypeForge[] = ["souche", "ecorcheur", "belier", "chien_de_
 const PORTE = "porte" as AbordId;
 const POTERNE = "poterne" as AbordId;
 
-const VOLUMES: readonly number[] = [14, 20, 26]; // 70/100/130 % de parité par round
+// Volumes calibrés en FORCE EFFECTIVE ennemie / défenseur.
+// Chaîne de modificateurs du défenseur ≈ 1.85 (mur × fortif × coord), donc
+// F_d de référence = 1.85 × TOTAL_GARNISON = 185. Ratios cibles : 0.8, 1.2, 1.8, 2.5.
+const REFERENCE_F_D = 185;
+const RATIOS_CIBLES: readonly number[] = [0.8, 1.2, 1.8, 2.5];
+const VOLUMES: readonly number[] = RATIOS_CIBLES.map((r) => Math.round(r * REFERENCE_F_D));
 
 const COMPOSITIONS: readonly {
   readonly composition: Readonly<Record<TypeForge, number>>;
@@ -106,11 +111,14 @@ interface StratAttaque {
 
 // --- Énumération -----------------------------------------------------------
 
-function enumererDefs(): DefStrat[] {
+function enumererDefs(config: Balance): DefStrat[] {
+  // Plafond de réserve : r ≤ part_reserve_max × total garnison.
+  const rMax = Math.floor(config.combat.part_reserve_max * TOTAL_GARNISON);
   const strats: DefStrat[] = [];
   for (let a1 = 0; a1 <= TOTAL_GARNISON; a1 += 10) {
     for (let a2 = 0; a2 <= TOTAL_GARNISON - a1; a2 += 10) {
       const r = TOTAL_GARNISON - a1 - a2;
+      if (r > rMax) continue;
       const posts1: readonly Exclude<Posture, "reserve">[] = a1 > 0 ? POSTURES : ["mur"];
       const posts2: readonly Exclude<Posture, "reserve">[] = a2 > 0 ? POSTURES : ["mur"];
       for (const p1 of posts1) {
@@ -188,6 +196,7 @@ function abord(
     commandant_grade: "sergent",
     rompu: false,
     flanque_ce_round: false,
+    reserve_recente: false,
   };
 }
 
@@ -221,7 +230,7 @@ function encoder(gagne: boolean, marge: number): number {
 // --- Main -----------------------------------------------------------------
 
 const config = chargerConfig("./config/balance.json");
-const defs = enumererDefs();
+const defs = enumererDefs(config);
 const atks = enumererAtks();
 const N_D = defs.length;
 const N_A = atks.length;

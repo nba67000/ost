@@ -1,12 +1,16 @@
 // Résolution d'UN round de combat, fonction pure.
 // Implémente strictement RULES §6, dans l'ordre :
 //   1. Instantané des abords
-//   2. Calcul des forces (avec malus de flanc HÉRITÉ du round précédent)
+//   2. Calcul des forces (avec malus de flanc HÉRITÉ du round précédent
+//      et malus d'engagement de réserve HÉRITÉ)
 //   3. Calcul des pertes (proportionnel simultané, à partir de l'instantané)
+//      - Pertes des abords (par leur vague)
+//      - Pertes de l'intérieur (par l'intrusion des vagues d'abords rompus)
 //   4. Application simultanée
 //   5. Ruptures (seuil relatif à l'effectif initial de l'ASSAUT)
 //   6. Marquage flanque pour le round suivant
 //   7. Réserve (dernière, saut si le lieu tombe)
+//      - Marque reserve_recente sur l'abord engagé pour malus au round suivant
 //
 // L'appelant boucle sur les rounds pour un assaut complet.
 
@@ -23,28 +27,22 @@ import type { ConditionReserve } from "../types/ordre.js";
 export interface EtatAbord {
   readonly abord_id: AbordId;
   readonly effectif: number;
-  /** Effectif au tout début de l'assaut (round 1). Sert au seuil de rupture. */
   readonly effectif_initial_assaut: number;
   readonly posture: Posture;
-  /** Voisins directs dans l'anneau. Vide pour un poste avancé. */
   readonly voisins: readonly AbordId[];
   readonly fortification_niveau: number;
-  /** Multiplicateur du terrain sur la fortification (crete=1.2, sinon 1). */
   readonly terrain_fortification: number;
-  /** [0.6, 1.0] — voir engine/ravitaillement. */
   readonly ravitaillement_coef: number;
-  /** 1.0 ou combat.modificateurs.fatigue_combat_veille (0.85). */
   readonly fatigue_coef: number;
-  /** Usure moyenne des pièces engagées ; le plancher est appliqué dans la formule. */
   readonly usure_coef: number;
-  /** 1.0 ou temps.bonus_preparation_verrouillage_matinal (1.15). */
   readonly preparation_coef: number;
-  /** Grade du commandant du lieu (donne coordination). */
   readonly commandant_grade: Grade;
-  /** Abord déjà rompu (round précédent). Ne combat plus. */
   readonly rompu: boolean;
   /** True si un voisin s'est rompu au round précédent. Malus s'applique CE round. */
   readonly flanque_ce_round: boolean;
+  /** True si la réserve a été engagée SUR CET ABORD au round précédent.
+   *  Malus de désordre s'applique CE round, puis se dissipe. */
+  readonly reserve_recente: boolean;
 }
 
 export interface EtatReserve {
@@ -55,7 +53,6 @@ export interface EtatReserve {
 
 export interface EtatRound {
   readonly lieu_id: LieuId;
-  /** 1-based. Round courant, avant résolution. */
   readonly numero_round: number;
   readonly abords: readonly EtatAbord[];
   readonly reserve: EtatReserve;
@@ -63,7 +60,6 @@ export interface EtatRound {
 
 export interface EntreeRound {
   readonly etat: EtatRound;
-  /** Composition de la vague par abord attaqué. Absent = pas d'attaque cet round. */
   readonly vagues: ReadonlyMap<AbordId, Readonly<Record<TypeForge, number>>>;
   readonly conditions_reserve: readonly ConditionReserve[];
   readonly config: Balance;
@@ -78,13 +74,13 @@ export interface DetailAbordRound {
   readonly force_defenseur: number;
   readonly force_assaillant: number;
   readonly coef_posture: number;
+  /** Pertes défenseur TOTALES (combat abord + spillover intérieur). */
   readonly pertes_defenseur: number;
+  /** Pertes défenseur venant du combat intérieur (spillover après réserve épuisée). */
+  readonly pertes_defenseur_interior: number;
   readonly pertes_assaillant: number;
-  /** True si l'abord vient de céder à ce round (nouveau rompu). */
   readonly rupture: boolean;
-  /** True si le malus de flanc s'appliquait à ce round. */
   readonly flanque_ce_round: boolean;
-  /** True si l'abord est cédé sans combat (garnison nulle). */
   readonly cede_sans_combat: boolean;
 }
 
@@ -94,10 +90,21 @@ export interface EngagementReserve {
   readonly effectif_engage: number;
 }
 
+/** Détail du combat intérieur (brèche), ou null si aucune intrusion ce round. */
+export interface DetailInterior {
+  readonly F_intrusion: number;
+  readonly F_interior: number;
+  readonly pertes_intrusion: number;
+  readonly pertes_reserve: number;
+  readonly pertes_abords_par_id: Readonly<Record<string, number>>;
+  readonly composition_intrusion: Readonly<Record<TypeForge, number>>;
+}
+
 export interface JournalRound {
   readonly numero_round: number;
   readonly details_abords: readonly DetailAbordRound[];
   readonly engagements_reserve: readonly EngagementReserve[];
+  readonly interior: DetailInterior | null;
   /** True si tous les abords sont désormais rompus : le lieu tombe. */
   readonly lieu_tombe: boolean;
 }
@@ -107,7 +114,7 @@ export interface SortieRound {
   readonly journal: JournalRound;
 }
 
-// --- Types utilitaires -----------------------------------------------------
+// --- Constantes ------------------------------------------------------------
 
 const TYPES_FORGES: readonly TypeForge[] = [
   "souche",
@@ -121,28 +128,129 @@ const TYPES_FORGES: readonly TypeForge[] = [
 
 export function resoudreRound(entree: EntreeRound): SortieRound {
   const { etat, vagues, conditions_reserve, config } = entree;
-
-  // Étape 1 : instantané pris ici. `snapshot` sert de source à TOUT le
-  // calcul des forces et des pertes de ce round — aucune application n'est
-  // faite avant d'avoir tout calculé.
   const snapshot = etat.abords;
 
-  // Étapes 2 & 3 : forces + pertes par abord, sur l'instantané.
-  const details: DetailAbordRound[] = snapshot.map((abord) =>
+  // Étapes 2 & 3a : combats d'abord (non-rompus, à partir de l'instantané).
+  const detailsAbords: DetailAbordRoundPartial[] = snapshot.map((abord) =>
     resoudreAbord(abord, vagues.get(abord.abord_id), config),
   );
 
-  // Étape 4 (implicite) : les nouveaux effectifs viennent directement de
-  // details[i].effectif_apres — calculés en parallèle, appliqués en même temps.
-
-  // Étape 5 : ruptures nouvelles à ce round (pas déjà rompus).
-  const nouvellesRuptures = new Set<AbordId>();
-  for (const d of details) {
-    if (d.rupture) nouvellesRuptures.add(d.abord_id);
+  // Étape 3b : intrusion (brèche). Vagues visant des abords rompus au start.
+  const intrusion: Record<TypeForge, number> = {
+    souche: 0,
+    ecorcheur: 0,
+    belier: 0,
+    chien_de_fosse: 0,
+    muet: 0,
+  };
+  let F_intrusion = 0;
+  for (const abord of snapshot) {
+    if (!abord.rompu) continue;
+    const w = vagues.get(abord.abord_id);
+    if (w === undefined) continue;
+    for (const t of TYPES_FORGES) {
+      const n = w[t] ?? 0;
+      intrusion[t] += n;
+      F_intrusion += n;
+    }
   }
 
-  // Étape 6 : marquage flanque pour le prochain round. Un abord survivant
-  // dont un voisin a rompu CE round subira le malus au round suivant.
+  // Combat intérieur — sans fortification, sans posture, mais avec la
+  // coordination du commandant de la réserve.
+  let pertes_reserve_interior = 0;
+  const pertes_abord_interior = new Map<AbordId, number>();
+  let interiorDetail: DetailInterior | null = null;
+
+  if (F_intrusion > 0) {
+    const nonRompus = snapshot.filter((a) => !a.rompu);
+    const totalAbordEff = nonRompus.reduce((s, a) => s + a.effectif, 0);
+    const interior_eff = etat.reserve.effectif + totalAbordEff;
+    const coord = config.grades.coordination[etat.reserve.commandant_grade];
+    const F_interior = interior_eff * coord;
+    let pertes_int_def = 0;
+    let pertes_intrusion = 0;
+
+    if (interior_eff > 0) {
+      const total = F_interior + F_intrusion;
+      const k = config.combat.taux_pertes_par_round;
+      pertes_int_def = Math.floor(((k * F_intrusion) / total) * interior_eff);
+      pertes_intrusion = Math.floor(((k * F_interior) / total) * F_intrusion);
+      if (F_intrusion > 0 && pertes_int_def === 0) pertes_int_def = 1;
+      if (F_interior > 0 && pertes_intrusion === 0) pertes_intrusion = 1;
+      pertes_int_def = Math.min(pertes_int_def, interior_eff);
+      pertes_intrusion = Math.min(pertes_intrusion, F_intrusion);
+
+      // Distribution : réserve d'abord, puis abords au prorata.
+      pertes_reserve_interior = Math.min(pertes_int_def, etat.reserve.effectif);
+      let restant = pertes_int_def - pertes_reserve_interior;
+      if (restant > 0 && totalAbordEff > 0) {
+        for (const a of nonRompus) {
+          const share = Math.round((restant * a.effectif) / totalAbordEff);
+          pertes_abord_interior.set(a.abord_id, share);
+        }
+      }
+    }
+
+    interiorDetail = {
+      F_intrusion,
+      F_interior,
+      pertes_intrusion,
+      pertes_reserve: pertes_reserve_interior,
+      pertes_abords_par_id: Object.fromEntries(pertes_abord_interior),
+      composition_intrusion: intrusion,
+    };
+  }
+
+  // Étape 4-5 : application des pertes (abord + intérieur) et évaluation des ruptures.
+  const nouvellesRuptures = new Set<AbordId>();
+  const abordsIntermed: EtatAbord[] = snapshot.map((a, i) => {
+    const d = detailsAbords[i]!;
+    let nouveau_effectif: number;
+    let rupture: boolean;
+    if (a.rompu) {
+      nouveau_effectif = a.effectif;
+      rupture = false;
+    } else if (d.cede_sans_combat) {
+      nouveau_effectif = 0;
+      rupture = true;
+    } else {
+      const interior_p = pertes_abord_interior.get(a.abord_id) ?? 0;
+      const total_pertes = d.pertes_defenseur + interior_p;
+      nouveau_effectif = Math.max(0, a.effectif - total_pertes);
+      const seuil = config.combat.seuil_rupture_abord * a.effectif_initial_assaut;
+      rupture = nouveau_effectif < seuil;
+    }
+    if (rupture && !a.rompu) nouvellesRuptures.add(a.abord_id);
+    return {
+      ...a,
+      effectif: nouveau_effectif,
+      rompu: a.rompu || rupture,
+      flanque_ce_round: false, // sera mis à jour ci-dessous
+      reserve_recente: false, // reset — sera mis à jour à l'étape 7 si engagement ce round
+    };
+  });
+
+  // Détails finaux : incorpore les pertes intérieures dans pertes_defenseur.
+  const detailsFinals: DetailAbordRound[] = detailsAbords.map((d, i) => {
+    const a = snapshot[i]!;
+    const interior_p = pertes_abord_interior.get(a.abord_id) ?? 0;
+    const total_pertes = d.pertes_defenseur + interior_p;
+    const nouveau_eff = abordsIntermed[i]!.effectif;
+    const rupture =
+      !a.rompu &&
+      (a.effectif === 0
+        ? d.cede_sans_combat
+        : nouveau_eff < config.combat.seuil_rupture_abord * a.effectif_initial_assaut);
+    return {
+      ...d,
+      pertes_defenseur: total_pertes,
+      pertes_defenseur_interior: interior_p,
+      effectif_apres: nouveau_eff,
+      rupture,
+    };
+  });
+
+  // Étape 6 : marquage flanque pour le prochain round.
   const flanquePourProchain = new Set<AbordId>();
   for (const abord of snapshot) {
     if (abord.rompu) continue;
@@ -155,23 +263,23 @@ export function resoudreRound(entree: EntreeRound): SortieRound {
     }
   }
 
-  // Assemblage des abords post-pertes.
-  const abordsApres: EtatAbord[] = snapshot.map((a) => {
-    const d = details.find((x) => x.abord_id === a.abord_id)!;
-    return {
-      ...a,
-      effectif: d.effectif_apres,
-      rompu: a.rompu || d.rupture,
-      flanque_ce_round: flanquePourProchain.has(a.abord_id),
-    };
-  });
+  // Applique flanque à abordsIntermed.
+  const abordsApres = abordsIntermed.map((a) => ({
+    ...a,
+    flanque_ce_round: flanquePourProchain.has(a.abord_id),
+  }));
 
   const lieu_tombe = abordsApres.every((a) => a.rompu);
 
-  // Étape 7 : réserve. Skip si le lieu tombe — la réserve n'a pas le temps
-  // d'agir (RULES §6, cas limite documenté).
-  let reserveApres = etat.reserve;
+  // Réserve après le combat intérieur.
+  let reserveApres = {
+    ...etat.reserve,
+    effectif: Math.max(0, etat.reserve.effectif - pertes_reserve_interior),
+  };
+
+  // Étape 7 : réserve (skip si lieu tombe).
   const engagements: EngagementReserve[] = [];
+  const abordsRecents = new Set<AbordId>();
 
   if (!lieu_tombe) {
     const conditionsTriees = [...conditions_reserve].sort((a, b) => a.ordre - b.ordre);
@@ -194,7 +302,7 @@ export function resoudreRound(entree: EntreeRound): SortieRound {
       const cibleIdx = abordsApres.findIndex((a) => a.abord_id === condition.action.abord_cible);
       if (cibleIdx === -1) continue;
       const cible = abordsApres[cibleIdx]!;
-      if (cible.rompu) continue; // cible perdue
+      if (cible.rompu) continue;
 
       const cibleEngagement = Math.floor(
         condition.action.part_reserve * reserveApres.effectif_initial_assaut,
@@ -203,6 +311,7 @@ export function resoudreRound(entree: EntreeRound): SortieRound {
       if (engage <= 0) continue;
 
       abordsApres[cibleIdx] = { ...cible, effectif: cible.effectif + engage };
+      abordsRecents.add(condition.action.abord_cible);
       reserveApres = { ...reserveApres, effectif: reserveApres.effectif - engage };
       engagements.push({
         condition_ordre: condition.ordre,
@@ -212,30 +321,41 @@ export function resoudreRound(entree: EntreeRound): SortieRound {
     }
   }
 
+  // Marque reserve_recente sur les abords ayant reçu un engagement.
+  const abordsFinaux = abordsApres.map((a) => ({
+    ...a,
+    reserve_recente: abordsRecents.has(a.abord_id),
+  }));
+
   return {
     etat_apres: {
       lieu_id: etat.lieu_id,
       numero_round: etat.numero_round + 1,
-      abords: abordsApres,
+      abords: abordsFinaux,
       reserve: reserveApres,
     },
     journal: {
       numero_round: etat.numero_round,
-      details_abords: details,
+      details_abords: detailsFinals,
       engagements_reserve: engagements,
+      interior: interiorDetail,
       lieu_tombe,
     },
   };
 }
 
-// --- Résolution d'un abord (étapes 2 + 3 pour ce paquet) -------------------
+// --- Résolution d'un abord (partial, sans pertes intérieures) --------------
+
+type DetailAbordRoundPartial = Omit<
+  DetailAbordRound,
+  "pertes_defenseur_interior" | "pertes_defenseur"
+> & { readonly pertes_defenseur: number };
 
 function resoudreAbord(
   abord: EtatAbord,
   composition: Readonly<Record<TypeForge, number>> | undefined,
   config: Balance,
-): DetailAbordRound {
-  // Abord déjà rompu : n'entre plus dans le combat.
+): DetailAbordRoundPartial {
   if (abord.rompu) {
     return {
       abord_id: abord.abord_id,
@@ -252,7 +372,6 @@ function resoudreAbord(
     };
   }
 
-  // Pas d'assaut sur cet abord.
   if (composition === undefined) {
     return {
       abord_id: abord.abord_id,
@@ -271,7 +390,6 @@ function resoudreAbord(
 
   const F_a = sommeComposition(composition);
 
-  // Abord sans garnison : cède immédiatement, sans passer par la matrice.
   if (abord.effectif <= 0) {
     return {
       abord_id: abord.abord_id,
@@ -291,8 +409,9 @@ function resoudreAbord(
   const coef_posture = calcCoefPosture(abord.posture, composition, config);
   const modifiers = calcModifiers(abord, config);
   const flanque_factor = abord.flanque_ce_round ? config.combat.malus_flanc_apres_rupture : 1;
+  const engagement_factor = abord.reserve_recente ? config.combat.malus_engagement_reserve : 1;
 
-  const F_d_raw = abord.effectif * coef_posture * modifiers * flanque_factor;
+  const F_d_raw = abord.effectif * coef_posture * modifiers * flanque_factor * engagement_factor;
   const F_d = clamp(
     F_d_raw,
     config.combat.clamp_force_min * abord.effectif,
@@ -331,7 +450,7 @@ function resoudreAbord(
   };
 }
 
-// --- Helpers de calcul -----------------------------------------------------
+// --- Helpers ---------------------------------------------------------------
 
 function calcCoefPosture(
   posture: Posture,

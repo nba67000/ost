@@ -176,6 +176,26 @@ structurel implicite (`ceil((N-1-k)/k)`). Effet équivalent aux petites
 tailles, sémantique lisible. Écarté : biaiser E vers le bas à petit N —
 ça enlève une variable de tirage sans gain net.
 
+**Brèche, malus d'engagement, plafond de réserve.** Le banc de dominance a
+révélé que "quasi-tout en réserve" (r=80-90) gagnait 100 % contre toute
+composition. Trois corrections couplées :
+
+1. **Brèche** : un abord qui cède fait entrer les Forgés dans le lieu.
+   L'intérieur (réserve + garnisons restantes) se bat sans fortification ni
+   posture. La réserve n'est plus une "seconde ligne parfaite" gratuite.
+2. **Malus d'engagement `0.8`** : une réserve engagée arrive en désordre,
+   la force effective de l'abord qu'elle rejoint est diminuée le round où
+   elle entre en ligne. Être en place au début vaut mieux que réagir.
+3. **Plafond `part_reserve_max = 0.4`** de la garnison. Garde-fou grossier
+   contre les répartitions dégénérées, en attendant que (1) et (2) fassent
+   leur travail.
+
+Effet mesuré au banc : le motif dominant passe de "10/0/90" à "50/10/40"
+(80 % de la garnison sur les murs au lieu de 10 %). Mais tant que le
+défenseur tient toujours 100 % à `rounds_max = 5`, les 10 meilleures
+répartitions restent sans contre — l'issue est plafonnée par la longueur
+d'assaut plutôt que par la topologie tactique.
+
 ---
 
 ## Questions ouvertes

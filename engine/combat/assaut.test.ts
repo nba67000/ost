@@ -55,6 +55,7 @@ function abord(opts: AbordOpts): EtatAbord {
     commandant_grade: opts.commandant_grade ?? "sergent",
     rompu: false,
     flanque_ce_round: false,
+    reserve_recente: false,
   };
 }
 
