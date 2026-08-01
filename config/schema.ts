@@ -30,6 +30,7 @@ export interface Balance {
     readonly abords: {
       readonly feu_de_guet: number;
       readonly poste_avance: number;
+      readonly fosse: number;
     };
   };
   readonly grades: {
@@ -159,6 +160,7 @@ export const SCHEMA: SchemaNoeud = {
     abords: {
       feu_de_guet: "number",
       poste_avance: "number",
+      fosse: "number",
     },
   },
   grades: {

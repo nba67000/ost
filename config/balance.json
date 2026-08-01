@@ -22,7 +22,7 @@
     "goulots_max": 4,
     "entrees_min": 1,
     "entrees_max": 3,
-    "abords": { "feu_de_guet": 2, "poste_avance": 1 }
+    "abords": { "feu_de_guet": 2, "poste_avance": 1, "fosse": 2 }
   },
 
   "grades": {

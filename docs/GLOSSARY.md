@@ -20,7 +20,9 @@ La province en guerre est celle dont la carte tactique est générée pour la lu
 
 **Carte** — le graphe tactique généré chaque lune pour la province en guerre. Jetable.
 
-**Lieu** — un nœud de la carte. Trois natures : `place_forte`, `feu_de_guet`, `poste_avance`.
+**Lieu** — un nœud de la carte. Quatre natures : `place_forte`, `feu_de_guet`,
+`poste_avance`, `fosse`. Chaque lieu est `tenu_par` le royaume, la horde, ou est
+`detruit` (état terminal réservé aux Fosses percées).
 
 **Place forte** — le cœur de la province. Une seule. 3 à 4 abords. Si elle tombe, la
 province est perdue.
@@ -46,8 +48,12 @@ au-dessus d'un certain effectif.
 province perdue lors de la lune précédente.
 
 **Fosse** — installation de la horde située **au-delà** des entrées, en territoire ennemi,
-reliée par sentiers uniquement. Produit les vagues. Les détruire toutes avant la fin de la
-lune donne la victoire décisive.
+reliée par sentiers uniquement. **Nature de lieu à part entière** (2 abords), défendue.
+Une expédition doit la percer ; elle ne se prend pas, elle se **détruit**. Produit les
+vagues. Les détruire toutes avant la fin de la lune donne la victoire décisive.
+
+**Entrée principale** — parmi les entrées d'une lune, celle qui reçoit la pression majeure
+de la horde. Déterminée par la province perdue la lune précédente.
 
 ---
 

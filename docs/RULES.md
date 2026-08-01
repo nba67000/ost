@@ -87,37 +87,65 @@ Déterministe à partir d'une graine. Construction **par couches**, du cœur ver
 ```
 1. N = clamp( round( effectif_actif × carte.lieux_par_joueur_actif ),
               carte.lieux_min, carte.lieux_max )
+     N compte les lieux du royaume UNIQUEMENT. Les Fosses s'ajoutent
+     par-dessus à l'étape 10.
+
 2. D = tirage( carte.profondeur_entree_place_forte_min,
-               carte.profondeur_entree_place_forte_max )                profondeur
-3. E = tirage( carte.entrees_min, carte.entrees_max )                   nb entrées
+               min( carte.profondeur_entree_place_forte_max,
+                    N - carte.entrees_min ) )                       profondeur
+
+3. E = tirage( carte.entrees_min,
+               min( carte.entrees_max, N - D ) )                    nb entrées
+
+     Les bornes des étapes 2-3 garantissent la contrainte
+     N - 1 - E >= D - 1 par construction : une répartition avec au
+     moins un lieu par couche intermédiaire est toujours faisable.
+
 4. Répartir les N lieux sur D+1 couches :
      couche 0 = la place forte (1 lieu)
      couche D = les entrées (E lieux)
      les N-1-E lieux restants sur les couches 1..D-1,
-     en croissant vers l'extérieur.
+     avec au moins 1 lieu par couche, en croissant vers l'extérieur.
+
 5. Arbre : chaque lieu de la couche k reçoit exactement un parent
    tiré dans la couche k-1. Toutes ces arêtes sont des ROUTES.
+
 6. Cycles : ajouter tirage( generation.cycles_min, generation.cycles_max )
    arêtes supplémentaires entre lieux de couches identiques ou adjacentes.
    Ces arêtes sont des SENTIERS.
-7. Natures : couche 0        = place_forte
-             couches D-1 et D = poste_avance
-             le reste          = feu_de_guet
+
+7. Natures des lieux royaume : couche 0         = place_forte
+                               couches D-1 et D = poste_avance
+                               le reste          = feu_de_guet
+
 8. Abords : place_forte  = tirage( combat.abords_place_forte_min,
                                    combat.abords_place_forte_max )
             feu_de_guet  = carte.abords.feu_de_guet
             poste_avance = carte.abords.poste_avance
+            fosse        = carte.abords.fosse
             Disposés en anneau.
+
 9. Terrain : tirer un terrain dominant pour la province, puis l'attribuer
    à generation.part_terrain_dominant des lieux ; le reste tiré uniformément.
-10. Fosses : tirage( generation.fosses_min, generation.fosses_max ) lieux
-    placés au-delà des entrées, reliés aux entrées par SENTIERS uniquement.
-11. Secteurs : partitionner par sous-arbre si l'effectif débloque les
-    capitaines, sinon un secteur unique.
+
+10. Fosses : ajouter tirage( generation.fosses_min, generation.fosses_max )
+    lieux de nature `fosse`, tenus_par `horde`, placés au-delà des entrées,
+    reliés chacun à une entrée tirée aléatoirement, par un SENTIER.
+    Une Fosse ne se prend pas : elle se `detruit`.
+
+11. Entrée principale : parmi les E entrées, désigner l'entrée principale
+    — celle d'où vient la pression majeure de la horde. Tirée à partir
+    de province_perdue_id (RNG dérivé), pour rester stable entre lunes.
+    Si aucune province n'a été perdue, l'entrée principale est tirée
+    depuis un contexte fixe.
+
+12. Secteurs : partitionner par sous-arbre si l'effectif débloque les
+    capitaines, sinon un secteur unique. La place forte et les Fosses
+    n'appartiennent à aucun secteur.
 ```
 
-L'étape 5 garantit que **toute arête d'arbre est une route**, donc que tout lieu est
-approvisionnable au départ. Les sentiers ne sont que des raccourcis tactiques.
+L'étape 5 garantit que **toute arête d'arbre est une route**, donc que tout lieu royaume
+est approvisionnable au départ. Les sentiers ne sont que des raccourcis tactiques.
 
 ### Vérification et rejet
 
@@ -128,8 +156,8 @@ Après génération, vérifier :
   points d'articulation sur le graphe des routes).
 - Aucun lieu à plus de `D` sauts de la place forte.
 
-Si la vérification échoue : **retirer avec la graine dérivée** (`graine + n° d'essai`),
-jusqu'à `generation.essais_max`.
+Si la vérification échoue : **retirer avec une graine dérivée**, jusqu'à
+`generation.essais_max` essais par niveau.
 
 Au-delà, **relâcher les contraintes dans cet ordre fixe**, une seule à la fois, et
 recommencer :
@@ -139,7 +167,9 @@ recommencer :
 3. `D` ramené à 3
 
 Cet ordre est **normatif** : il garantit qu'une génération échoue toujours de la même
-façon.
+façon. Un déclenchement fréquent du relâchement signale que les paramètres du config sont
+mal réglés, jamais qu'un tirage était infaisable — les étapes 2 et 3 garantissent la
+faisabilité arithmétique dès le départ.
 
 ### Terrain
 
@@ -158,8 +188,10 @@ donne son identité à la lune (*la lune des marais*).
 
 ```
 lieu(id, nature, terrain, secteur_id, abords[], fortification, tenu_par)
+    nature   : place_forte | feu_de_guet | poste_avance | fosse
+    tenu_par : royaume | horde | detruit
 lien(a, b, nature: route | sentier)
-province(id, lieux[], liens[], entrees[], place_forte_id, fosses[])
+province(id, lieux[], liens[], entrees[], entree_principale, place_forte_id, fosses[])
 ```
 
 ---

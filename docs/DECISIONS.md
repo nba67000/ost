@@ -122,6 +122,20 @@ quatre semaines avec des inconnus elle détruit la confiance.
 **Ne jamais exposer publiquement la contribution individuelle.** Dans un jeu où l'échec d'un
 joueur nuit à tous, on cherche un coupable — et un classement le désigne.
 
+**Fosse = 4ᵉ nature de lieu, pas un poste avancé.** Une Fosse produit, se défend, porte
+une condition de victoire, et **se détruit** au lieu d'être prise. La forcer dans
+`poste_avance` fusionnait des mécaniques distinctes. Ajout corollaire : `tenu_par` peut
+valoir `detruit`, état terminal réservé aux Fosses percées.
+
+**Pré-contrainte sur D et E dans la génération de carte.** D et E sont tirés sous
+`E ≤ N − D` dès le départ. Un tirage arithmétiquement infaisable ne consomme plus un
+essai. Écarté : laisser la vérification-rejet gérer ces cas — ça polluait le taux de
+relâchement mesuré par `carte:stats`, alors que ce taux doit refléter la qualité des
+paramètres de config, pas la chance du RNG.
+
+**Entrée principale dérivée de la province perdue.** La pression majeure vient d'où l'on
+a cédé la lune précédente. Sans ce lien, `province_perdue_id` était un paramètre inerte.
+
 ---
 
 ## Questions ouvertes

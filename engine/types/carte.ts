@@ -1,10 +1,11 @@
 // Types de la carte tactique et du royaume.
 // Voir RULES §3 (Le monde) et le glossaire.
 
-export type NatureLieu = "place_forte" | "feu_de_guet" | "poste_avance";
+export type NatureLieu = "place_forte" | "feu_de_guet" | "poste_avance" | "fosse";
 export type NatureLien = "route" | "sentier";
 export type TerrainId = "crete" | "marais" | "foret" | "plaine" | "delta";
-export type Tenu = "royaume" | "horde";
+/** État de possession d'un lieu. `detruit` est réservé aux Fosses percées. */
+export type Tenu = "royaume" | "horde" | "detruit";
 
 declare const LieuIdBrand: unique symbol;
 export type LieuId = string & { readonly [LieuIdBrand]: never };
@@ -44,6 +45,8 @@ export interface Province {
   readonly lieux: readonly Lieu[];
   readonly liens: readonly Lien[];
   readonly entrees: readonly LieuId[];
+  /** L'une des entrées, celle qui reçoit la pression majeure de la horde. */
+  readonly entree_principale: LieuId;
   readonly place_forte_id: LieuId;
   readonly fosses: readonly LieuId[];
 }

@@ -8,6 +8,8 @@
   },
   "scripts": {
     "sim": "tsx sim/main.ts",
+    "carte": "tsx sim/carte.ts",
+    "carte:stats": "tsx sim/carte-stats.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
