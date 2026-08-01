@@ -394,7 +394,23 @@ function tenter(
         break;
     }
     const abords: Abord[] = [];
-    const fortifBase = config.carte.fortification_base[nature];
+    let fortifBase: number;
+    switch (nature) {
+      case "place_forte":
+        // Croît avec le nombre d'abords : chaque abord additionnel demande
+        // un cran de fortification pour compenser sa surface exposée.
+        fortifBase = nb * config.carte.fortification_base.place_forte_par_abord;
+        break;
+      case "feu_de_guet":
+        fortifBase = config.carte.fortification_base.feu_de_guet;
+        break;
+      case "poste_avance":
+        fortifBase = config.carte.fortification_base.poste_avance;
+        break;
+      case "fosse":
+        fortifBase = config.carte.fortification_base.fosse;
+        break;
+    }
     for (let i = 0; i < nb; i++) {
       abords.push({ id: idAbord(compteurA++), index_anneau: i, fortification: fortifBase });
     }

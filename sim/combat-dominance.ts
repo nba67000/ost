@@ -63,7 +63,7 @@ const CONFIGS: readonly BenchConfig[] = [
   { k: 1, pasDef: 10, pasSplit: 100, nature: "poste_avancé", fortifBase: 0 },
   { k: 2, pasDef: 10, pasSplit: 10, nature: "feu_de_guet", fortifBase: 1 },
   { k: 3, pasDef: 10, pasSplit: 25, nature: "place_forte (3)", fortifBase: 3 },
-  { k: 4, pasDef: 20, pasSplit: 25, nature: "place_forte (4)", fortifBase: 3 },
+  { k: 4, pasDef: 20, pasSplit: 25, nature: "place_forte (4)", fortifBase: 4 },
 ];
 
 const FORTIF_LEVELS = [0, 1, 2, 3, 4];

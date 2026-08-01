@@ -36,7 +36,7 @@ export interface Balance {
       readonly fosse: number;
     };
     readonly fortification_base: {
-      readonly place_forte: number;
+      readonly place_forte_par_abord: number;
       readonly feu_de_guet: number;
       readonly poste_avance: number;
       readonly fosse: number;
@@ -179,7 +179,7 @@ export const SCHEMA: SchemaNoeud = {
       fosse: "number",
     },
     fortification_base: {
-      place_forte: "number",
+      place_forte_par_abord: "number",
       feu_de_guet: "number",
       poste_avance: "number",
       fosse: "number",

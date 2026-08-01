@@ -154,8 +154,11 @@ Déterministe à partir d'une graine. Construction **par couches**, du cœur ver
             fosse        = carte.abords.fosse
             Disposés en anneau.
    Chaque abord reçoit une fortification de base selon la nature du lieu :
-     place_forte  = carte.fortification_base.place_forte  (3 par défaut)
-     feu_de_guet  = carte.fortification_base.feu_de_guet  (1 par défaut)
+     place_forte  = nb_abords × carte.fortification_base.place_forte_par_abord
+                    (chaque abord additionnel demande un cran de plus pour
+                    compenser la surface exposée : 3 abords → 3, 4 abords → 4)
+     feu_de_guet  = carte.fortification_base.feu_de_guet  (1 par défaut,
+                    marge de progression du sergent)
      poste_avance = carte.fortification_base.poste_avance (0 par défaut)
      fosse        = carte.fortification_base.fosse        (0 par défaut)
 

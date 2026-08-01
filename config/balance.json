@@ -27,7 +27,7 @@
     "entrees_max": 3,
     "abords": { "feu_de_guet": 2, "poste_avance": 1, "fosse": 2 },
     "fortification_base": {
-      "place_forte": 3,
+      "place_forte_par_abord": 1,
       "feu_de_guet": 1,
       "poste_avance": 0,
       "fosse": 0

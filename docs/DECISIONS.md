@@ -177,11 +177,14 @@ tailles, sémantique lisible. Écarté : biaiser E vers le bas à petit N —
 ça enlève une variable de tirage sans gain net.
 
 **Fortification de base par nature de lieu.** `carte.fortification_base` :
-place_forte 3, feu_de_guet 1, poste_avancé 0. C'est ce qui fait qu'une place
-forte est le point le plus dur de la province plutôt que le plus mince par
-homme. Sans cette différenciation, un défenseur préférait toujours grouper
-son effectif sur un feu de guet plutôt que de le répartir sur les 3-4 abords
-d'une place forte.
+place_forte = nb_abords × 1 (3 pour 3 abords, 4 pour 4 abords — compense la
+surface exposée d'un abord supplémentaire), feu_de_guet = 1 (marge de
+progression du sergent qui peut fortifier), poste_avancé = 0. C'est ce qui
+fait qu'une place forte est le point le plus dur de la province plutôt que
+le plus mince par homme. Sans cette différenciation, un défenseur préférait
+toujours grouper son effectif sur un feu de guet plutôt que de le répartir
+sur les 3-4 abords d'une place forte. Le tirage abords 3 vs 4 par la graine
+ne doit pas coûter au joueur — la formule linéaire par abord compense.
 
 **`combat.fortification_par_niveau` : 1.1 → 1.35.** À 1.1, trois niveaux de
 mur valaient +33 % de force — trop peu pour justifier les jours de travail
