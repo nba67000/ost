@@ -3,6 +3,7 @@
 // (1) distribution des cartes retenues, (2) diagnostic par essai.
 
 import { chargerConfig } from "../config/loader.js";
+import { calculerFragilite, fragiliteParRang } from "../engine/carte/fragilite.js";
 import type { MotifRejet } from "../engine/carte/generation.js";
 import { genererCarte } from "../engine/carte/generation.js";
 import type { LieuId, Province, ProvinceId } from "../engine/types/carte.js";
@@ -25,18 +26,15 @@ const config = chargerConfig("./config/balance.json");
 
 interface StatCarte {
   readonly pop: number;
-  lieuxMin: number;
-  lieuxMax: number;
   lieuxSomme: number;
-  fossesMin: number;
-  fossesMax: number;
   fossesSomme: number;
   goulotsSomme: number;
   profondeurMaxSomme: number;
   routesSomme: number;
   routesRedondantesSomme: number;
   sentiersTactiquesSomme: number;
-  sentiersFosseSomme: number;
+  frag1Somme: number; // fragilité maximale
+  frag2Somme: number; // second rang
   relaxation: [number, number, number, number];
 }
 
@@ -84,18 +82,15 @@ const diags: StatDiagnostic[] = [];
 for (const pop of POPULATIONS) {
   const carte: StatCarte = {
     pop,
-    lieuxMin: Number.POSITIVE_INFINITY,
-    lieuxMax: 0,
     lieuxSomme: 0,
-    fossesMin: Number.POSITIVE_INFINITY,
-    fossesMax: 0,
     fossesSomme: 0,
     goulotsSomme: 0,
     profondeurMaxSomme: 0,
     routesSomme: 0,
     routesRedondantesSomme: 0,
     sentiersTactiquesSomme: 0,
-    sentiersFosseSomme: 0,
+    frag1Somme: 0,
+    frag2Somme: 0,
     relaxation: [0, 0, 0, 0],
   };
   const diag: StatDiagnostic = {
@@ -106,6 +101,7 @@ for (const pop of POPULATIONS) {
     motifs: {
       arithmetique_impossible: 0,
       profondeur_depassee: 0,
+      fragilite_excessive: 0,
       retenu: 0,
     },
   };
@@ -119,25 +115,28 @@ for (const pop of POPULATIONS) {
       config,
     });
 
-    const nRoyaume = s.province.lieux.filter((l) => l.tenu_par === "royaume").length;
-    const nFosses = s.province.fosses.length;
-    if (nRoyaume < carte.lieuxMin) carte.lieuxMin = nRoyaume;
-    if (nRoyaume > carte.lieuxMax) carte.lieuxMax = nRoyaume;
+    const royaumeLieux = s.province.lieux.filter((l) => l.tenu_par === "royaume");
+    const nRoyaume = royaumeLieux.length;
     carte.lieuxSomme += nRoyaume;
-    if (nFosses < carte.fossesMin) carte.fossesMin = nFosses;
-    if (nFosses > carte.fossesMax) carte.fossesMax = nFosses;
-    carte.fossesSomme += nFosses;
+    carte.fossesSomme += s.province.fosses.length;
     carte.goulotsSomme += s.goulots.length;
     carte.routesSomme += s.province.liens.filter((l) => l.nature === "route").length;
     const fosseIds = new Set<LieuId>(s.province.fosses);
     const sentiers = s.province.liens.filter((l) => l.nature === "sentier");
     const sentiersFosse = sentiers.filter((l) => fosseIds.has(l.a) || fosseIds.has(l.b)).length;
-    carte.sentiersFosseSomme += sentiersFosse;
     carte.sentiersTactiquesSomme += sentiers.length - sentiersFosse;
     carte.relaxation[s.niveau_relaxation]++;
     carte.profondeurMaxSomme += profondeurRoutes(s.province.place_forte_id, s.province);
     const retenu = s.diagnostic[s.diagnostic.length - 1]!;
     carte.routesRedondantesSomme += retenu.nb_routes_redondantes ?? 0;
+
+    // Fragilité (rang 1 et 2) — recalculée depuis la carte finale
+    const royaumeIds = new Set<LieuId>(royaumeLieux.map((l) => l.id));
+    const impactsRanges = fragiliteParRang(
+      calculerFragilite(royaumeIds, s.province.liens, s.province.place_forte_id),
+    );
+    carte.frag1Somme += impactsRanges[0]?.coupes ?? 0;
+    carte.frag2Somme += impactsRanges[1]?.coupes ?? 0;
 
     for (const d of s.diagnostic) {
       diag.essaisTotal++;
@@ -160,11 +159,12 @@ const lignes: string[] = [];
 lignes.push(`Distribution sur ${tirages} tirages par taille de population.`);
 lignes.push("");
 lignes.push(
-  "Pop.  Lieux (moy)  Fosses (moy)  Prof (moy)  Goulots (moy)  Arbre/Redond/SentTact  Relax 0/1/2/3",
+  "Pop.  Lieux  Fosses  Prof   Goulots  Frag1  Frag2  Arbre/Redond/SentTact  Relax 0/1/2/3",
 );
-lignes.push("-".repeat(115));
+lignes.push("-".repeat(120));
 for (const s of cartes) {
-  const moyL = (s.lieuxSomme / tirages).toFixed(1);
+  const N = s.lieuxSomme / tirages;
+  const moyL = N.toFixed(1);
   const moyF = (s.fossesSomme / tirages).toFixed(2);
   const moyP = (s.profondeurMaxSomme / tirages).toFixed(2);
   const moyG = (s.goulotsSomme / tirages).toFixed(2);
@@ -172,13 +172,17 @@ for (const s of cartes) {
   const moyArbre = (routesArbre / tirages).toFixed(1);
   const moyRedond = (s.routesRedondantesSomme / tirages).toFixed(1);
   const moySentiers = (s.sentiersTactiquesSomme / tirages).toFixed(1);
+  const moyFrag1 = s.frag1Somme / tirages;
+  const moyFrag2 = s.frag2Somme / tirages;
+  const pct1 = N > 0 ? `${((moyFrag1 / N) * 100).toFixed(0)}%` : "-";
+  const pct2 = N > 0 ? `${((moyFrag2 / N) * 100).toFixed(0)}%` : "-";
+  const frag1Aff = `${moyFrag1.toFixed(1)}(${pct1})`;
+  const frag2Aff = `${moyFrag2.toFixed(1)}(${pct2})`;
   const relaxTaux = s.relaxation.map((n) => `${((n / tirages) * 100).toFixed(0)}%`).join("/");
   lignes.push(
-    `${String(s.pop).padStart(4)}    ` +
-      `${moyL.padStart(5)}       ` +
-      `${moyF.padStart(4)}       ` +
-      `${moyP.padStart(5)}       ` +
-      `${moyG.padStart(5)}       ` +
+    `${String(s.pop).padStart(4)}  ` +
+      `${moyL.padStart(5)}  ${moyF.padStart(4)}   ${moyP.padStart(4)}   ${moyG.padStart(4)}    ` +
+      `${frag1Aff.padStart(9)}  ${frag2Aff.padStart(8)}  ` +
       `${moyArbre.padStart(4)}/${moyRedond.padStart(4)}/${moySentiers.padStart(4)}          ` +
       `${relaxTaux}`,
   );
@@ -189,9 +193,9 @@ lignes.push("");
 lignes.push("Diagnostic — instrumentation temporaire pour comprendre la sélection.");
 lignes.push("");
 lignes.push(
-  "Pop.  Essais/tirage   D tiré (dist)          D retenu (dist)         Rejets/essai : arith / prof",
+  "Pop.  Essais/tirage   D tiré (dist)          D retenu (dist)         Rejets/essai : arith / prof / frag",
 );
-lignes.push("-".repeat(115));
+lignes.push("-".repeat(120));
 for (const d of diags) {
   const essaisMoy = (d.essaisTotal / tirages).toFixed(2);
   const distStr = (m: Map<number, number>, tot: number): string => {
@@ -208,7 +212,7 @@ for (const d of diags) {
       `${essaisMoy.padStart(4)}           ` +
       `${dTire.padEnd(20)}   ` +
       `${dRetenu.padEnd(20)}   ` +
-      `${taux(d.motifs.arithmetique_impossible)} / ${taux(d.motifs.profondeur_depassee)}`,
+      `${taux(d.motifs.arithmetique_impossible)} / ${taux(d.motifs.profondeur_depassee)} / ${taux(d.motifs.fragilite_excessive)}`,
   );
 }
 

@@ -17,6 +17,7 @@ import type {
 import type { Balance } from "../../config/schema.js";
 import { creerRng, type RNG } from "../rng/index.js";
 import { detecterGoulots } from "./goulots.js";
+import { calculerFragilite, fragiliteMaximale } from "./fragilite.js";
 
 export interface EntreeGeneration {
   readonly graine: bigint;
@@ -27,9 +28,8 @@ export interface EntreeGeneration {
 }
 
 /** Motif de rejet d'un essai de génération. */
-export type MotifRejet = "arithmetique_impossible" | "profondeur_depassee";
+export type MotifRejet = "arithmetique_impossible" | "profondeur_depassee" | "fragilite_excessive";
 
-/** Trace d'un essai : ce qui a été tiré et construit, et le motif de rejet éventuel. */
 export interface DiagnosticEssai {
   readonly niveau: 0 | 1 | 2 | 3;
   readonly essai: number;
@@ -38,6 +38,7 @@ export interface DiagnosticEssai {
   readonly nb_routes_redondantes: number | null;
   readonly nb_sentiers: number | null;
   readonly nb_goulots: number | null;
+  readonly fragilite_max: number | null;
   /** null = essai retenu. */
   readonly motif_rejet: MotifRejet | null;
 }
@@ -137,6 +138,20 @@ function bornesGoulots(N: number, config: Balance): { min: number; max: number }
   return { min, max };
 }
 
+/**
+ * Cible de fragilité maximale. `round(N × coef)` est l'objectif de design,
+ * mais avec `k = couches[1]` enfants directs de la place forte, la fragilité
+ * minimale atteignable est ≈ ceil((N-1-k) / k) — un enfant qui porte la
+ * moyenne du reste de l'arbre. On prend le max des deux pour éviter de rejeter
+ * des cartes structurellement inaméliorables.
+ */
+function cibleFragilite(N: number, k_enfants_pf: number, config: Balance): number {
+  const cibleDesign = Math.round(N * config.carte.fragilite_max_coef);
+  if (k_enfants_pf <= 0) return cibleDesign;
+  const cibleStructurelle = Math.ceil((N - 1 - k_enfants_pf) / k_enfants_pf);
+  return Math.max(cibleDesign, cibleStructurelle);
+}
+
 function tenter(
   rng: RNG,
   N: number,
@@ -146,13 +161,12 @@ function tenter(
 ): ResultatEssai {
   const { config } = entree;
 
-  // Application des relâchements — seuls la profondeur et le nombre de sentiers
-  // sont relâchables. Les bornes de goulots ne sont plus un critère de rejet.
+  // Application des relâchements — la fragilité est la dernière à être relâchée.
   const sentiersMinCfg = niveau >= 1 ? 1 : config.generation.sentiers_min;
   const sentiersMaxCfg = niveau >= 1 ? 1 : config.generation.sentiers_max;
   const profondeurMax = niveau >= 2 ? 3 : config.carte.profondeur_entree_place_forte_max;
 
-  const { max: goulotsCible } = bornesGoulots(N, config);
+  const { max: goulotsMax } = bornesGoulots(N, config);
 
   const rejete = (partiel: {
     D_tire: number | null;
@@ -160,13 +174,14 @@ function tenter(
     nb_routes_redondantes: number | null;
     nb_sentiers: number | null;
     nb_goulots: number | null;
+    fragilite_max: number | null;
     motif_rejet: MotifRejet;
   }): ResultatEssai => ({
     retenu: false,
     diagnostic: { niveau, essai: indexEssai, ...partiel },
   });
 
-  // Étape 2 : D sous contrainte E >= entrees_min ⇒ D ≤ N - entrees_min
+  // Étape 2 : D
   const dMin = config.carte.profondeur_entree_place_forte_min;
   const dMax = Math.min(profondeurMax, N - config.carte.entrees_min);
   if (dMax < 1) {
@@ -176,16 +191,14 @@ function tenter(
       nb_routes_redondantes: null,
       nb_sentiers: null,
       nb_goulots: null,
+      fragilite_max: null,
       motif_rejet: "arithmetique_impossible",
     });
   }
-  // Cap dMin à dMax : pour les petites cartes, la profondeur cible n'est
-  // structurellement pas atteignable. On accepte D < dMin sans le compter
-  // comme un rejet.
   const dMinEffectif = Math.min(dMin, dMax);
   const D = rng.entier(dMinEffectif, dMax);
 
-  // Étape 3 : E sous contrainte E ≤ N - D
+  // Étape 3 : E
   const eMin = config.carte.entrees_min;
   const eMax = Math.min(config.carte.entrees_max, N - D);
   if (eMax < eMin) {
@@ -195,6 +208,7 @@ function tenter(
       nb_routes_redondantes: null,
       nb_sentiers: null,
       nb_goulots: null,
+      fragilite_max: null,
       motif_rejet: "arithmetique_impossible",
     });
   }
@@ -209,6 +223,7 @@ function tenter(
       nb_routes_redondantes: null,
       nb_sentiers: null,
       nb_goulots: null,
+      fragilite_max: null,
       motif_rejet: "arithmetique_impossible",
     });
   }
@@ -227,6 +242,7 @@ function tenter(
   }
   const royaumeSet: ReadonlySet<LieuId> = new Set(tousRoyaume);
   const pfId = lieuParCouche[0]![0]!;
+  const kEnfantsPF = tailles[1] ?? 0;
 
   // Étape 5 : arbre — chaque lieu de couche k reçoit un parent en couche k-1 (ROUTE)
   const liens: Lien[] = [];
@@ -238,8 +254,7 @@ function tenter(
     }
   }
 
-  // Candidats pour arêtes supplémentaires : paires même couche ou couches
-  // adjacentes, pas déjà dans l'arbre.
+  // Candidats pour arêtes supplémentaires (routes redondantes + sentiers)
   const existantes = new Set<string>(liens.map((l) => paireCle(l.a, l.b)));
   const candidates: [LieuId, LieuId][] = [];
   for (let k = 0; k <= D; k++) {
@@ -261,38 +276,77 @@ function tenter(
     }
   }
 
-  // Étape 6a : routes redondantes — ajoutées de façon gloutonne pour faire
-  // descendre les goulots dans la fenêtre. Chaque itération choisit l'arête
-  // qui supprime le plus de goulots. S'arrête dès que goulots <= cible, ou
-  // qu'aucune arête candidate ne réduit plus de goulots.
-  let goulotsCourants = detecterGoulots(royaumeSet, liens, pfId);
+  // --- Étape 6a — Phase A : minimiser la fragilité maximale ------------
+  const fragiliteCibleBase = cibleFragilite(N, kEnfantsPF, config);
+  const fragiliteCibleEffective = niveau >= 3 ? Number.POSITIVE_INFINITY : fragiliteCibleBase;
+
+  let currentImpacts = calculerFragilite(royaumeSet, liens, pfId);
+  let currentMaxFrag = fragiliteMaximale(currentImpacts);
   let nbRoutesRedondantes = 0;
-  while (goulotsCourants.length > goulotsCible && candidates.length > 0) {
-    let meilleurIdx = -1;
-    let meilleureReduction = 0;
+
+  while (currentMaxFrag > fragiliteCibleEffective && candidates.length > 0) {
+    let bestIdx = -1;
+    let bestNewMax = currentMaxFrag;
+    for (let idx = 0; idx < candidates.length; idx++) {
+      const [u, v] = candidates[idx]!;
+      liens.push({ a: u, b: v, nature: "route" });
+      const impacts = calculerFragilite(royaumeSet, liens, pfId);
+      liens.pop();
+      const newMax = fragiliteMaximale(impacts);
+      if (newMax < bestNewMax) {
+        bestNewMax = newMax;
+        bestIdx = idx;
+      }
+    }
+    if (bestIdx === -1) break;
+    const [u, v] = candidates[bestIdx]!;
+    liens.push({ a: u, b: v, nature: "route" });
+    existantes.add(paireCle(u, v));
+    candidates.splice(bestIdx, 1);
+    currentImpacts = calculerFragilite(royaumeSet, liens, pfId);
+    currentMaxFrag = fragiliteMaximale(currentImpacts);
+    nbRoutesRedondantes++;
+  }
+
+  // --- Étape 6a — Phase B : ramener les goulots dans la fenêtre --------
+  let currentGoulots = detecterGoulots(royaumeSet, liens, pfId);
+  while (currentGoulots.length > goulotsMax && candidates.length > 0) {
+    let bestIdx = -1;
+    let bestNewCount = currentGoulots.length;
     for (let idx = 0; idx < candidates.length; idx++) {
       const [u, v] = candidates[idx]!;
       liens.push({ a: u, b: v, nature: "route" });
       const nvxGoulots = detecterGoulots(royaumeSet, liens, pfId);
       liens.pop();
-      const reduction = goulotsCourants.length - nvxGoulots.length;
-      if (reduction > meilleureReduction) {
-        meilleureReduction = reduction;
-        meilleurIdx = idx;
+      if (nvxGoulots.length < bestNewCount) {
+        bestNewCount = nvxGoulots.length;
+        bestIdx = idx;
       }
     }
-    if (meilleurIdx === -1) break;
-    const [u, v] = candidates[meilleurIdx]!;
+    if (bestIdx === -1) break;
+    const [u, v] = candidates[bestIdx]!;
     liens.push({ a: u, b: v, nature: "route" });
     existantes.add(paireCle(u, v));
-    candidates.splice(meilleurIdx, 1);
-    goulotsCourants = detecterGoulots(royaumeSet, liens, pfId);
+    candidates.splice(bestIdx, 1);
+    currentGoulots = detecterGoulots(royaumeSet, liens, pfId);
     nbRoutesRedondantes++;
   }
 
-  // Étape 6b : sentiers — nombre déterministe fonction de N, purement tactiques
-  // (ne réduisent aucun goulot puisque le ravitaillement ne passe que par les
-  // routes). Tirés parmi les candidats restants.
+  // Vérification de fragilité — motif de rejet le plus important, relâché
+  // en dernier (niveau 3).
+  if (currentMaxFrag > fragiliteCibleEffective) {
+    return rejete({
+      D_tire: D,
+      E_tire: E,
+      nb_routes_redondantes: nbRoutesRedondantes,
+      nb_sentiers: 0,
+      nb_goulots: currentGoulots.length,
+      fragilite_max: currentMaxFrag,
+      motif_rejet: "fragilite_excessive",
+    });
+  }
+
+  // --- Étape 6b — Sentiers tactiques ------------------------------------
   const nbSentiersCible = clampInt(
     Math.round(N / config.generation.sentiers_par_lieux),
     sentiersMinCfg,
@@ -384,11 +438,6 @@ function tenter(
   // Étape 12 : secteurs
   const secteurParLieu = new Map<LieuId, SecteurId | null>();
   if (entree.effectif_actif >= config.grades.seuils_effectif.capitaine) {
-    // Sur le graphe des routes, la place forte a plusieurs enfants directs.
-    // Un secteur = un sous-arbre issu d'un de ces enfants. Comme la carte
-    // contient maintenant des routes redondantes (cycles), on utilise un
-    // parcours BFS routes-only depuis la PF, en attribuant chaque lieu au
-    // secteur du premier enfant PF rencontré sur son chemin le plus court.
     const voisinsRoutes = new Map<LieuId, LieuId[]>();
     for (const idL of tousRoyaume) voisinsRoutes.set(idL, []);
     for (const lien of liens) {
@@ -460,8 +509,7 @@ function tenter(
     fosses,
   };
 
-  // Vérification résiduelle : profondeur uniquement. Les goulots sont
-  // désormais contraints par construction (étape 6a), pas par rejet.
+  // Vérification de profondeur
   const distances = bfsRoutes(pfId, province);
   for (const l of lieux) {
     if (l.tenu_par !== "royaume") continue;
@@ -472,7 +520,8 @@ function tenter(
         E_tire: E,
         nb_routes_redondantes: nbRoutesRedondantes,
         nb_sentiers: nbSentiersReels,
-        nb_goulots: goulotsCourants.length,
+        nb_goulots: currentGoulots.length,
+        fragilite_max: currentMaxFrag,
         motif_rejet: "profondeur_depassee",
       });
     }
@@ -481,7 +530,7 @@ function tenter(
   return {
     retenu: true,
     province,
-    goulots: goulotsCourants,
+    goulots: currentGoulots,
     diagnostic: {
       niveau,
       essai: indexEssai,
@@ -489,7 +538,8 @@ function tenter(
       E_tire: E,
       nb_routes_redondantes: nbRoutesRedondantes,
       nb_sentiers: nbSentiersReels,
-      nb_goulots: goulotsCourants.length,
+      nb_goulots: currentGoulots.length,
+      fragilite_max: currentMaxFrag,
       motif_rejet: null,
     },
   };
@@ -497,6 +547,15 @@ function tenter(
 
 // --- Helpers internes ------------------------------------------------------
 
+/**
+ * Répartit N lieux sur D+1 couches. Layer 0 = 1 (PF), Layer D = E (entrées),
+ * layers intermédiaires en croissant vers l'extérieur.
+ *
+ * Bump structurel : quand c'est possible (reste ≥ D), on donne à layer 1
+ * au moins **2 enfants directs de la PF** pour éviter une fragilité
+ * concentrée. Sans ce bump, la carte devient une chaîne à petit N et un
+ * seul lieu déconnecte tout.
+ */
 function repartir(N: number, D: number, E: number): number[] | null {
   const reste = N - 1 - E;
   if (reste < D - 1) return null;
@@ -504,12 +563,20 @@ function repartir(N: number, D: number, E: number): number[] | null {
   couches[0] = 1;
   couches[D] = E;
   if (D === 1) return couches;
+
+  const bumpLayer1 = reste >= D;
+  const resteApresBump = bumpLayer1 ? reste - 1 : reste;
+
   const poidsSomme = ((D - 1) * D) / 2;
   let affecte = 0;
   for (let k = 1; k <= D - 1; k++) {
-    const brut = (k * reste) / poidsSomme;
+    const brut = (k * resteApresBump) / poidsSomme;
     couches[k] = Math.max(1, Math.round(brut));
     affecte += couches[k]!;
+  }
+  if (bumpLayer1) {
+    couches[1]! += 1;
+    affecte += 1;
   }
   const correction = reste - affecte;
   couches[D - 1]! += correction;

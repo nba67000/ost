@@ -26,6 +26,7 @@ export interface Balance {
     readonly goulots_coef_min: number;
     readonly goulots_coef_max: number;
     readonly goulots_fenetre_min: number;
+    readonly fragilite_max_coef: number;
     readonly entrees_min: number;
     readonly entrees_max: number;
     readonly abords: {
@@ -158,6 +159,7 @@ export const SCHEMA: SchemaNoeud = {
     goulots_coef_min: "number",
     goulots_coef_max: "number",
     goulots_fenetre_min: "number",
+    fragilite_max_coef: "number",
     entrees_min: "number",
     entrees_max: "number",
     abords: {

@@ -21,6 +21,7 @@
     "goulots_coef_min": 0.12,
     "goulots_coef_max": 0.3,
     "goulots_fenetre_min": 2,
+    "fragilite_max_coef": 0.3,
     "entrees_min": 1,
     "entrees_max": 3,
     "abords": { "feu_de_guet": 2, "poste_avance": 1, "fosse": 2 }

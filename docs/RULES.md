@@ -106,21 +106,34 @@ Déterministe à partir d'une graine. Construction **par couches**, du cœur ver
      couche D = les entrées (E lieux)
      les N-1-E lieux restants sur les couches 1..D-1,
      avec au moins 1 lieu par couche, en croissant vers l'extérieur.
+     **Bump structurel** : quand c'est possible (reste ≥ D), la couche 1
+     reçoit au moins 2 enfants directs de la PF — sans quoi une chaîne à
+     petit N rend toute la province tributaire d'un lieu unique.
 
 5. Arbre : chaque lieu de la couche k reçoit exactement un parent
    tiré dans la couche k-1. Toutes ces arêtes sont des ROUTES.
 
 6a. Routes redondantes : ajouter des arêtes ROUTES supplémentaires **de façon
     gloutonne**, entre lieux de couches identiques ou adjacentes non déjà reliés.
-    À chaque itération, choisir l'arête qui, si ajoutée, supprimerait le plus
-    de goulots. S'arrêter dès que le nombre de goulots redescend dans la
-    fenêtre [ round(N × carte.goulots_coef_min),
-             round(N × carte.goulots_coef_max) ]
-    (avec un plancher à 0 et une fenêtre minimale de carte.goulots_fenetre_min),
-    ou dès qu'aucune arête candidate ne réduit plus de goulots.
+    Deux phases séquentielles :
 
-    Les routes redondantes sont ce qui donne la **redondance de ravitaillement** :
-    elles créent des chemins alternatifs pour le convoi.
+    **Phase A (primaire) : minimiser la fragilité maximale.**
+    Objectif : aucun lieu (hors PF) ne doit déconnecter plus de
+    `round(N × carte.fragilite_max_coef)` autres lieux du royaume, capé au
+    minimum structurel `ceil((N - 1 - couches[1]) / couches[1])`. À chaque
+    itération, choisir l'arête qui réduit le plus la fragilité maximale.
+
+    **Phase B (secondaire) : ramener les goulots dans la fenêtre.**
+    Fenêtre = [ round(N × carte.goulots_coef_min),
+                round(N × carte.goulots_coef_max) ] avec plancher 0 et
+    largeur minimale `carte.goulots_fenetre_min`. Choisir l'arête qui réduit
+    le plus le nombre de goulots.
+
+    S'arrêter dès que l'objectif de la phase est atteint, ou qu'aucune arête
+    candidate n'améliore plus.
+
+    Les routes redondantes sont ce qui donne la **redondance de
+    ravitaillement** : elles créent des chemins alternatifs pour le convoi.
 
 6b. Sentiers : ajouter
      nb_sentiers = clamp( round( N / generation.sentiers_par_lieux ),
@@ -164,10 +177,15 @@ est approvisionnable au départ. Les sentiers ne sont que des raccourcis tactiqu
 
 ### Vérification et rejet
 
-Le nombre de goulots est désormais **contraint par construction** (étape 6a), pas par
-rejet a posteriori. La vérification résiduelle se limite à :
+Deux vérifications résiduelles :
 
-- Aucun lieu à plus de `D` sauts de la place forte.
+- **Fragilité maximale** ≤ cible (voir phase A). Le motif de rejet
+  `fragilite_excessive` est le plus important — c'est la propriété qui
+  empêche une province de tomber sur une seule bataille.
+- **Aucun lieu** à plus de `D` sauts de la place forte.
+
+Le nombre de goulots n'est plus un critère de rejet — il est contraint par
+construction en phase B.
 
 Si la vérification échoue : **retirer avec une graine dérivée**, jusqu'à
 `generation.essais_max` essais par niveau.
@@ -177,12 +195,12 @@ recommencer :
 
 1. Nombre de sentiers ramené à 1
 2. `D` ramené à 3
+3. Cible de fragilité désactivée
 
-Ce court ordre est **normatif**. Les rejets restants sont soit `arithmetique_impossible`
-(bornes de config incohérentes), soit `profondeur_depassee` (défense — la construction
-par couches est censée l'empêcher). Un déclenchement fréquent du relâchement signale
-que les paramètres du config sont mal réglés, jamais qu'un tirage était infaisable —
-les étapes 2 et 3 garantissent la faisabilité arithmétique dès le départ.
+Ce court ordre est **normatif**. La cible de fragilité est relâchée en
+DERNIER — c'est la contrainte la plus importante. Un déclenchement fréquent
+du relâchement de niveau 3 signale que les paramètres du config sont mal
+réglés.
 
 ### Terrain
 

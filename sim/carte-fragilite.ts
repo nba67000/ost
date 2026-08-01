@@ -4,7 +4,7 @@
 
 import { chargerConfig } from "../config/loader.js";
 import { genererCarte } from "../engine/carte/generation.js";
-import { calculerApprovisionnement } from "../engine/ravitaillement/index.js";
+import { calculerFragilite, fragiliteParRang } from "../engine/carte/fragilite.js";
 import type { LieuId, ProvinceId } from "../engine/types/carte.js";
 
 function arg(nom: string): string | undefined {
@@ -51,64 +51,30 @@ const s = genererCarte({
   config,
 });
 const p = s.province;
-const initial = calculerApprovisionnement(p.lieux, p.liens, p.place_forte_id, config);
 
-interface Ligne {
-  readonly id: LieuId;
-  readonly nature: string;
-  readonly terrain: string;
-  readonly coupes: number;
-  readonly perdants: readonly LieuId[];
-}
+const royaumeIds = new Set<LieuId>(
+  p.lieux.filter((l) => l.tenu_par === "royaume").map((l) => l.id),
+);
+const impacts = fragiliteParRang(calculerFragilite(royaumeIds, p.liens, p.place_forte_id));
 
-const lignes: Ligne[] = [];
-for (const candidat of p.lieux) {
-  if (candidat.tenu_par !== "royaume") continue;
-  if (candidat.id === p.place_forte_id) continue;
-
-  const lieuxMod = p.lieux.map((l) =>
-    l.id === candidat.id ? { ...l, tenu_par: "horde" as const } : l,
-  );
-  const apres = calculerApprovisionnement(lieuxMod, p.liens, p.place_forte_id, config);
-
-  const perdants: LieuId[] = [];
-  for (const other of p.lieux) {
-    if (other.tenu_par !== "royaume") continue;
-    if (other.id === candidat.id) continue;
-    if (initial.approvisionnes.has(other.id) && !apres.approvisionnes.has(other.id)) {
-      perdants.push(other.id);
-    }
-  }
-  lignes.push({
-    id: candidat.id,
-    nature: candidat.nature,
-    terrain: candidat.terrain,
-    coupes: perdants.length,
-    perdants,
-  });
-}
-
-lignes.sort((a, b) => b.coupes - a.coupes || a.id.localeCompare(b.id));
-
-const totalRoyaume = p.lieux.filter((l) => l.tenu_par === "royaume").length;
+const infoLieu = new Map(p.lieux.map((l) => [l.id, l]));
+const totalRoyaume = royaumeIds.size;
 
 const out: string[] = [];
 out.push(`Fragilité — province ${p.id}, graine ${graine.toString()}, effectif ${joueurs}`);
-out.push(`Approvisionnés au départ : ${initial.approvisionnes.size} / ${totalRoyaume}`);
+out.push(`Royaume : ${totalRoyaume} lieux`);
 out.push("");
 out.push("Rang  Lieu   Nature         Terrain   Impact");
 out.push("-".repeat(90));
-lignes.forEach((l, i) => {
+impacts.forEach((imp, i) => {
   const rang = String(i + 1).padStart(4);
-  const listeCourte =
-    l.perdants.length === 0
-      ? ""
-      : l.perdants.length <= 5
-        ? ` (${l.perdants.join(", ")})`
-        : ` (${l.perdants.slice(0, 5).join(", ")}, …)`;
+  const info = infoLieu.get(imp.lieu_id);
+  const nature = (info?.nature ?? "?").padEnd(13);
+  const terrain = (info?.terrain ?? "?").padEnd(7);
+  const pct = totalRoyaume > 0 ? ((imp.coupes / totalRoyaume) * 100).toFixed(0) : "?";
   out.push(
-    `${rang}  ${l.id}   ${l.nature.padEnd(13)} ${l.terrain.padEnd(7)}  ` +
-      `coupe ${String(l.coupes).padStart(2)} lieu${l.coupes > 1 ? "x" : " "}${listeCourte}`,
+    `${rang}  ${imp.lieu_id}   ${nature} ${terrain}  ` +
+      `coupe ${String(imp.coupes).padStart(2)} lieu${imp.coupes > 1 ? "x" : " "}  (${pct.padStart(2)}%)`,
   );
 });
 

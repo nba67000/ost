@@ -152,6 +152,23 @@ donc aucun goulot (la connectivité de ravitaillement ne change pas). Compter le
 comme "cycles" mélangeait les fonctions. Corollaire : la cible historique de 65/35
 routes/sentiers ne mesurait rien — abandonnée.
 
+**Le greedy minimise la fragilité, pas le nombre de goulots.** Avec un plafond
+absolu de goulots (approche précédente), l'arbre profond à N=25 était retenu
+sans redondance parce qu'il n'avait "que" 5-6 goulots — mais un seul d'entre
+eux coupait 18 lieux sur 25 (72 %). Le nombre de goulots est un indicateur
+grossier ; la métrique qui compte pour "la province ne tombe pas sur une
+bataille" est la fragilité maximale (combien de lieux perd-on si UN lieu
+tombe). Le greedy est réordonné en deux phases : phase A minimise le max
+de fragilité, phase B ramène les goulots dans la fenêtre. La cible
+`fragilite_max_coef = 0.30` est un plafond sur ce max.
+
+**Bump structurel couches[1] ≥ 2.** À petit N (surtout N=5), la répartition
+"croissante" naïve donne couches[1] = 1 : PF a un seul enfant direct, qui
+concentre TOUT le sous-arbre. La fragilité maximum est alors N-2 (60 %+),
+inatteignable à 30 %. Le bump garantit au moins 2 enfants directs de PF
+dès que `reste ≥ D`. Cap structurel de la cible en filet de sécurité pour
+les cas résiduels (E=2 à N=5).
+
 ---
 
 ## Questions ouvertes
