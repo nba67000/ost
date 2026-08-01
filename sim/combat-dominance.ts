@@ -1,9 +1,11 @@
 // npm run combat:dominance
-// Banc de validation du combat : pour chaque couple (répartition défensive,
-// shape ennemi), cherche par dichotomie le RATIO DE BASCULE — le plus petit
-// rapport F_a / F_d à partir duquel le lieu tombe.
+// Banc de validation du combat, paramétré par le nombre d'abords (k).
+// Pour chaque couple (répartition défensive, shape ennemi), cherche par
+// dichotomie le RATIO DE BASCULE en EFFECTIFS BRUTS assaillants/défenseurs.
 //
-// Mesure continue, plus fine que le binaire gagne/perd.
+// Canonicalise les répartitions symétriques (miroir) : sur un lieu à abords
+// équivalents, (10, 60, 30) et (60, 10, 30) sont la même stratégie. Sinon
+// le top 10 ne contient que la moitié de stratégies réelles.
 
 import { chargerConfig } from "../config/loader.js";
 import type { Balance } from "../config/schema.js";
@@ -14,22 +16,15 @@ import type { TypeForge } from "../engine/types/forge.js";
 import type { Posture } from "../engine/types/garnison.js";
 import type { ConditionReserve } from "../engine/types/ordre.js";
 
-// --- Paramètres du banc ---------------------------------------------------
+// --- Paramètres --------------------------------------------------------
 
 const TOTAL_GARNISON = 100;
-const POSTURES: readonly Exclude<Posture, "reserve">[] = ["mur", "cognee", "fer"];
+const POSTURES: readonly Exclude<Posture, "reserve">[] = ["cognee", "fer", "mur"];
 const TYPES: readonly TypeForge[] = ["souche", "ecorcheur", "belier", "chien_de_fosse", "muet"];
 
-const PORTE = "porte" as AbordId;
-const POTERNE = "poterne" as AbordId;
-
-// Le ratio est exprimé en EFFECTIFS BRUTS assaillants / défenseurs.
-// Volume par round = ratio × TOTAL_GARNISON. Une position défendue doit
-// demander une supériorité numérique pour tomber ; c'est ce nombre qu'on lit.
 const RATIO_MIN = 0.5;
 const RATIO_MAX = 10.0;
 const RATIO_PRECISION = 0.05;
-/** Valeur sentinelle : le défenseur tient même à RATIO_MAX (imprenable). */
 const RATIO_SENTINEL = RATIO_MAX + RATIO_PRECISION;
 
 const COMPOSITIONS: readonly {
@@ -62,100 +57,171 @@ const COMPOSITIONS: readonly {
   },
 ];
 
-const SPLITS: readonly [number, number][] = [
-  [1.0, 0.0],
-  [0.75, 0.25],
-  [0.5, 0.5],
-  [0.25, 0.75],
-  [0.0, 1.0],
+interface BenchConfig {
+  readonly k: number;
+  readonly pasDef: number;
+  readonly pasSplit: number;
+  readonly label: string;
+}
+
+const BENCHES: readonly BenchConfig[] = [
+  { k: 2, pasDef: 10, pasSplit: 10, label: "Feu de guet (2 abords)" },
+  { k: 3, pasDef: 10, pasSplit: 25, label: "3 abords" },
+  { k: 4, pasDef: 20, pasSplit: 25, label: "Place forte (4 abords)" },
 ];
 
-const CONDITIONS_STANDARD: readonly ConditionReserve[] = [
-  {
-    ordre: 1,
-    declencheur: {
-      abord_id: PORTE,
-      metrique: "effectif_restant_relatif",
-      comparateur: "<",
-      seuil: 0.5,
-    },
-    action: { abord_cible: PORTE, part_reserve: 1.0 },
-  },
-  {
-    ordre: 2,
-    declencheur: {
-      abord_id: POTERNE,
-      metrique: "effectif_restant_relatif",
-      comparateur: "<",
-      seuil: 0.5,
-    },
-    action: { abord_cible: POTERNE, part_reserve: 1.0 },
-  },
-];
+// --- Types -----------------------------------------------------------
 
-// --- Types ----------------------------------------------------------------
+type PostureOrNone = Exclude<Posture, "reserve"> | "-";
 
 interface DefStrat {
-  readonly a1: number;
-  readonly a2: number;
+  readonly abords: readonly number[];
+  readonly postures: readonly PostureOrNone[];
   readonly r: number;
-  readonly p1: Exclude<Posture, "reserve">;
-  readonly p2: Exclude<Posture, "reserve">;
   readonly label: string;
 }
 
 interface AttackShape {
+  readonly splits: readonly number[]; // fractions summant à 1
   readonly composition: Readonly<Record<TypeForge, number>>;
   readonly nomCompo: string;
-  readonly split1: number;
-  readonly split2: number;
   readonly label: string;
 }
 
-// --- Énumération ----------------------------------------------------------
+// --- Canonicalisation ------------------------------------------------
 
-function enumererDefs(config: Balance): DefStrat[] {
-  const rMax = Math.floor(config.combat.part_reserve_max * TOTAL_GARNISON);
-  const strats: DefStrat[] = [];
-  for (let a1 = 0; a1 <= TOTAL_GARNISON; a1 += 10) {
-    for (let a2 = 0; a2 <= TOTAL_GARNISON - a1; a2 += 10) {
-      const r = TOTAL_GARNISON - a1 - a2;
-      if (r > rMax) continue;
-      const posts1: readonly Exclude<Posture, "reserve">[] = a1 > 0 ? POSTURES : ["mur"];
-      const posts2: readonly Exclude<Posture, "reserve">[] = a2 > 0 ? POSTURES : ["mur"];
-      for (const p1 of posts1) {
-        for (const p2 of posts2) {
-          const p1c = a1 > 0 ? p1.charAt(0) : "-";
-          const p2c = a2 > 0 ? p2.charAt(0) : "-";
-          const label =
-            `${String(a1).padStart(3)}/${String(a2).padStart(3)}/${String(r).padStart(3)}-` +
-            `${p1c}${p2c}`;
-          strats.push({ a1, a2, r, p1, p2, label });
-        }
-      }
-    }
-  }
-  return strats;
+function canonicalKeyDef(
+  abords: readonly number[],
+  postures: readonly PostureOrNone[],
+  r: number,
+): string {
+  const pairs = abords.map((a, i) => ({ a, p: postures[i]! }));
+  pairs.sort((x, y) => {
+    if (y.a !== x.a) return y.a - x.a;
+    return x.p < y.p ? -1 : x.p > y.p ? 1 : 0;
+  });
+  return pairs.map((p) => `${p.a}${p.p}`).join(",") + `|r${r}`;
 }
 
-function enumererShapes(): AttackShape[] {
-  const shapes: AttackShape[] = [];
-  for (const c of COMPOSITIONS) {
-    for (const [s1, s2] of SPLITS) {
-      const label = `${c.nom.padEnd(13)}-${String(Math.round(s1 * 100)).padStart(3)}/${String(Math.round(s2 * 100)).padStart(3)}`;
-      shapes.push({
-        composition: c.composition,
-        nomCompo: c.nom,
-        split1: s1,
-        split2: s2,
-        label,
+function labelDef(
+  abords: readonly number[],
+  postures: readonly PostureOrNone[],
+  r: number,
+): string {
+  const pairs = abords.map((a, i) => ({ a, p: postures[i]! }));
+  pairs.sort((x, y) => {
+    if (y.a !== x.a) return y.a - x.a;
+    return x.p < y.p ? -1 : x.p > y.p ? 1 : 0;
+  });
+  const aStr = pairs.map((p) => String(p.a).padStart(3)).join("/");
+  const pStr = pairs.map((p) => (p.p === "-" ? "-" : p.p.charAt(0))).join("");
+  return `${aStr}-${pStr}|r${String(r).padStart(2)}`;
+}
+
+function canonicalKeyShape(splits: readonly number[], nomCompo: string): string {
+  const sorted = [...splits].sort((a, b) => b - a);
+  return sorted.map((s) => Math.round(s * 100)).join("/") + `|${nomCompo}`;
+}
+
+function labelShape(splits: readonly number[], nomCompo: string): string {
+  const sorted = [...splits].sort((a, b) => b - a);
+  return `${nomCompo.padEnd(13)}-${sorted.map((s) => String(Math.round(s * 100)).padStart(3)).join("/")}`;
+}
+
+// --- Énumération -----------------------------------------------------
+
+function enumererDefs(cfg: BenchConfig, balance: Balance): DefStrat[] {
+  const rMax = Math.floor(balance.combat.part_reserve_max * TOTAL_GARNISON);
+  const seen = new Set<string>();
+  const strats: DefStrat[] = [];
+
+  function ajouterAvecPostures(alloc: number[], r: number): void {
+    // enumerate posture combos
+    const nonZero: number[] = [];
+    for (let i = 0; i < alloc.length; i++) if (alloc[i]! > 0) nonZero.push(i);
+    const nz = nonZero.length;
+    let total = 1;
+    for (let i = 0; i < nz; i++) total *= POSTURES.length;
+    for (let mask = 0; mask < total; mask++) {
+      const postures: PostureOrNone[] = alloc.map((a) => (a > 0 ? POSTURES[0]! : "-"));
+      let m = mask;
+      for (const idx of nonZero) {
+        postures[idx] = POSTURES[m % POSTURES.length]!;
+        m = Math.floor(m / POSTURES.length);
+      }
+      const key = canonicalKeyDef(alloc, postures, r);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      strats.push({
+        abords: alloc.slice(),
+        postures: postures.slice(),
+        r,
+        label: labelDef(alloc, postures, r),
       });
     }
   }
+
+  function recurse(index: number, remaining: number, current: number[]): void {
+    if (index === cfg.k) {
+      if (remaining < 0 || remaining > rMax) return;
+      ajouterAvecPostures(current, remaining);
+      return;
+    }
+    for (let a = 0; a <= Math.min(TOTAL_GARNISON, remaining); a += cfg.pasDef) {
+      current.push(a);
+      recurse(index + 1, remaining - a, current);
+      current.pop();
+    }
+  }
+  recurse(0, TOTAL_GARNISON, []);
+  return strats;
+}
+
+function enumererShapes(cfg: BenchConfig): AttackShape[] {
+  const seen = new Set<string>();
+  const shapes: AttackShape[] = [];
+
+  function ajouterAvecCompos(splitsPct: number[]): void {
+    const splits = splitsPct.map((s) => s / 100);
+    for (const c of COMPOSITIONS) {
+      const key = canonicalKeyShape(splits, c.nom);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      shapes.push({
+        splits: splits.slice(),
+        composition: c.composition,
+        nomCompo: c.nom,
+        label: labelShape(splits, c.nom),
+      });
+    }
+  }
+
+  function recurse(index: number, remaining: number, current: number[]): void {
+    if (index === cfg.k) {
+      if (remaining === 0) ajouterAvecCompos(current);
+      return;
+    }
+    for (let s = 0; s <= remaining; s += cfg.pasSplit) {
+      current.push(s);
+      recurse(index + 1, remaining - s, current);
+      current.pop();
+    }
+  }
+  recurse(0, 100, []);
   return shapes;
 }
 
-// --- Combat ---------------------------------------------------------------
+// --- Combat ----------------------------------------------------------
+
+function voisinsAnneau(i: number, k: number): number[] {
+  if (k === 1) return [];
+  if (k === 2) return [1 - i];
+  return [(i - 1 + k) % k, (i + 1) % k];
+}
+
+function abordId(i: number): AbordId {
+  return `a${i}` as AbordId;
+}
 
 function construireVague(
   volume: number,
@@ -174,18 +240,15 @@ function construireVague(
   return out;
 }
 
-function abord(
-  id: AbordId,
-  voisin: AbordId,
-  eff: number,
-  posture: Exclude<Posture, "reserve">,
-): EtatAbord {
+function abord(i: number, k: number, eff: number, posture: PostureOrNone): EtatAbord {
+  // Si effectif nul, la posture est arbitraire (n'entre pas dans le combat).
+  const p: Exclude<Posture, "reserve"> = posture === "-" ? "mur" : posture;
   return {
-    abord_id: id,
+    abord_id: abordId(i),
     effectif: eff,
     effectif_initial_assaut: eff,
-    posture,
-    voisins: [voisin],
+    posture: p,
+    voisins: voisinsAnneau(i, k).map(abordId),
     fortification_niveau: 1,
     terrain_fortification: 1,
     ravitaillement_coef: 1,
@@ -199,45 +262,61 @@ function abord(
   };
 }
 
-function jouerRatio(D: DefStrat, A: AttackShape, ratio: number, config: Balance): SortieAssaut {
-  // volume par round en effectifs bruts = ratio × TOTAL_GARNISON
+function conditionsStandard(k: number): ConditionReserve[] {
+  const conds: ConditionReserve[] = [];
+  for (let i = 0; i < k; i++) {
+    conds.push({
+      ordre: i + 1,
+      declencheur: {
+        abord_id: abordId(i),
+        metrique: "effectif_restant_relatif",
+        comparateur: "<",
+        seuil: 0.5,
+      },
+      action: { abord_cible: abordId(i), part_reserve: 1.0 },
+    });
+  }
+  return conds;
+}
+
+function jouerRatio(D: DefStrat, A: AttackShape, ratio: number, balance: Balance): SortieAssaut {
   const volume = ratio * TOTAL_GARNISON;
+  const k = D.abords.length;
+  const abords: EtatAbord[] = D.abords.map((a, i) => abord(i, k, a, D.postures[i]!));
   const etat_initial: EtatRound = {
     lieu_id: "L001" as LieuId,
     numero_round: 1,
-    abords: [abord(PORTE, POTERNE, D.a1, D.p1), abord(POTERNE, PORTE, D.a2, D.p2)],
+    abords,
     reserve: { effectif: D.r, effectif_initial_assaut: D.r, commandant_grade: "sergent" },
   };
   const vagues_par_round = new Map<number, Map<AbordId, Record<TypeForge, number>>>();
-  for (let r = 1; r <= config.combat.rounds_max; r++) {
+  for (let r = 1; r <= balance.combat.rounds_max; r++) {
     const m = new Map<AbordId, Record<TypeForge, number>>();
-    if (A.split1 > 0) m.set(PORTE, construireVague(volume, A.split1, A.composition));
-    if (A.split2 > 0) m.set(POTERNE, construireVague(volume, A.split2, A.composition));
+    for (let i = 0; i < k; i++) {
+      const s = A.splits[i] ?? 0;
+      if (s > 0) m.set(abordId(i), construireVague(volume, s, A.composition));
+    }
     vagues_par_round.set(r, m);
   }
   const entree: EntreeAssaut = {
     etat_initial,
     vagues_par_round,
-    conditions_reserve: CONDITIONS_STANDARD,
-    config,
+    conditions_reserve: conditionsStandard(k),
+    config: balance,
   };
   return resoudreAssaut(entree);
 }
 
-/** Ratio de bascule : plus petit ratio à partir duquel le lieu tombe. */
-function bascule(D: DefStrat, A: AttackShape, config: Balance): number {
-  // À RATIO_MAX, si le lieu ne tombe toujours pas → défenseur imprenable.
-  const haut = jouerRatio(D, A, RATIO_MAX, config);
+function bascule(D: DefStrat, A: AttackShape, balance: Balance): number {
+  const haut = jouerRatio(D, A, RATIO_MAX, balance);
   if (haut.issue !== "lieu_tombe") return RATIO_SENTINEL;
-  // À RATIO_MIN, si le lieu tombe déjà → défenseur très fragile.
-  const bas = jouerRatio(D, A, RATIO_MIN, config);
+  const bas = jouerRatio(D, A, RATIO_MIN, balance);
   if (bas.issue === "lieu_tombe") return RATIO_MIN;
-  // Dichotomie.
   let lo = RATIO_MIN;
   let hi = RATIO_MAX;
   while (hi - lo > RATIO_PRECISION) {
     const mid = (lo + hi) / 2;
-    const s = jouerRatio(D, A, mid, config);
+    const s = jouerRatio(D, A, mid, balance);
     if (s.issue === "lieu_tombe") hi = mid;
     else lo = mid;
   }
@@ -252,186 +331,162 @@ function median(vals: readonly number[]): number {
   return (sorted[n / 2 - 1]! + sorted[n / 2]!) / 2;
 }
 
-// --- Main -----------------------------------------------------------------
-
-const config = chargerConfig("./config/balance.json");
-const defs = enumererDefs(config);
-const shapes = enumererShapes();
-const N_D = defs.length;
-const N_S = shapes.length;
-
-process.stdout.write(
-  `Ratio de bascule — ${N_D} répartitions défensives × ${N_S} shapes ennemis = ` +
-    `${N_D * N_S} couples.\n`,
-);
-process.stdout.write(
-  `Chaque couple : dichotomie sur [${RATIO_MIN}, ${RATIO_MAX}], précision ${RATIO_PRECISION}.\n`,
-);
-
-const t0 = Date.now();
-const basculeMat = new Float64Array(N_D * N_S);
-for (let i = 0; i < N_D; i++) {
-  for (let j = 0; j < N_S; j++) {
-    basculeMat[i * N_S + j] = bascule(defs[i]!, shapes[j]!, config);
-  }
-}
-process.stdout.write(`Bascules calculées en ${Date.now() - t0} ms.\n\n`);
-
-// Statistiques par répartition
-function statsD(i: number): { min: number; med: number; max: number; vals: number[] } {
-  const vals: number[] = [];
-  for (let j = 0; j < N_S; j++) vals.push(basculeMat[i * N_S + j]!);
-  const mn = Math.min(...vals);
-  const mx = Math.max(...vals);
-  const md = median(vals);
-  return { min: mn, med: md, max: mx, vals };
-}
-
 function fmt(r: number): string {
-  return r >= RATIO_SENTINEL ? ">6.00" : r.toFixed(2);
+  return r >= RATIO_SENTINEL ? ">10.0" : r.toFixed(2);
 }
 
-// --- 1. Dominance stricte défenseur ---------------------------------------
+// --- Analyse -----------------------------------------------------------
 
-process.stdout.write("=== 1. Dominance stricte côté défenseur ===\n");
-let dominantD: number | null = null;
-for (let i = 0; i < N_D; i++) {
-  let alwaysGeq = true;
-  let anyStrict = false;
-  for (let k = 0; k < N_D; k++) {
-    if (k === i) continue;
-    let subGeq = true;
-    let subStrict = false;
+function runBench(cfg: BenchConfig, balance: Balance): void {
+  const defs = enumererDefs(cfg, balance);
+  const shapes = enumererShapes(cfg);
+  const N_D = defs.length;
+  const N_S = shapes.length;
+
+  process.stdout.write(
+    `\n\n=== ${cfg.label} : ${N_D} répartitions canoniques × ${N_S} shapes ` +
+      `= ${N_D * N_S} couples (pas def ${cfg.pasDef}%, pas split ${cfg.pasSplit}%) ===\n`,
+  );
+
+  const t0 = Date.now();
+  const basculeMat = new Float64Array(N_D * N_S);
+  for (let i = 0; i < N_D; i++) {
     for (let j = 0; j < N_S; j++) {
-      const b1 = basculeMat[i * N_S + j]!;
-      const b2 = basculeMat[k * N_S + j]!;
-      if (b1 < b2) {
-        subGeq = false;
+      basculeMat[i * N_S + j] = bascule(defs[i]!, shapes[j]!, balance);
+    }
+  }
+  process.stdout.write(`Calculées en ${Date.now() - t0} ms.\n\n`);
+
+  function statsD(i: number): { min: number; med: number; max: number } {
+    const vals: number[] = [];
+    for (let j = 0; j < N_S; j++) vals.push(basculeMat[i * N_S + j]!);
+    return { min: Math.min(...vals), med: median(vals), max: Math.max(...vals) };
+  }
+
+  // 1. Dominance stricte défenseur
+  process.stdout.write("1. Dominance stricte défenseur : ");
+  let dominantD: number | null = null;
+  for (let i = 0; i < N_D; i++) {
+    let alwaysGeq = true;
+    let anyStrict = false;
+    for (let k = 0; k < N_D; k++) {
+      if (k === i) continue;
+      let subGeq = true;
+      let subStrict = false;
+      for (let j = 0; j < N_S; j++) {
+        const b1 = basculeMat[i * N_S + j]!;
+        const b2 = basculeMat[k * N_S + j]!;
+        if (b1 < b2) {
+          subGeq = false;
+          break;
+        }
+        if (b1 > b2) subStrict = true;
+      }
+      if (!subGeq) {
+        alwaysGeq = false;
         break;
       }
-      if (b1 > b2) subStrict = true;
+      if (subStrict) anyStrict = true;
     }
-    if (!subGeq) {
-      alwaysGeq = false;
+    if (alwaysGeq && anyStrict) {
+      dominantD = i;
       break;
     }
-    if (subStrict) anyStrict = true;
   }
-  if (alwaysGeq && anyStrict) {
-    dominantD = i;
-    break;
+  if (dominantD !== null) {
+    process.stdout.write(`ÉCHEC — ${defs[dominantD]!.label} domine.\n`);
+  } else {
+    process.stdout.write("aucune. OK.\n");
   }
-}
-if (dominantD !== null) {
-  process.stdout.write(`ÉCHEC : la répartition ${defs[dominantD]!.label} domine strictement.\n\n`);
-} else {
-  process.stdout.write("Aucune répartition ne domine strictement les autres. OK.\n\n");
-}
 
-// --- 2. MAXIMIN vs MOYENNE ------------------------------------------------
-
-process.stdout.write("=== 2. MAXIMIN (meilleur pire) vs MOYENNE (meilleure médiane) ===\n");
-let iMaximin = 0;
-let iMoyenne = 0;
-let bestMin = -Infinity;
-let bestMed = -Infinity;
-for (let i = 0; i < N_D; i++) {
-  const s = statsD(i);
-  if (s.min > bestMin) {
-    bestMin = s.min;
-    iMaximin = i;
-  }
-  if (s.med > bestMed) {
-    bestMed = s.med;
-    iMoyenne = i;
-  }
-}
-const sMaximin = statsD(iMaximin);
-const sMoyenne = statsD(iMoyenne);
-process.stdout.write(
-  `MAXIMIN  : ${defs[iMaximin]!.label}   pire ${fmt(sMaximin.min)}, médiane ${fmt(sMaximin.med)}, max ${fmt(sMaximin.max)}\n`,
-);
-process.stdout.write(
-  `MOYENNE  : ${defs[iMoyenne]!.label}   pire ${fmt(sMoyenne.min)}, médiane ${fmt(sMoyenne.med)}, max ${fmt(sMoyenne.max)}\n`,
-);
-if (iMaximin === iMoyenne) {
-  process.stdout.write("ÉCHEC : la MAXIMIN est aussi la MOYENNE.\n\n");
-} else {
-  const gapMed = sMoyenne.med - sMaximin.med;
-  const gapMin = sMaximin.min - sMoyenne.min;
-  process.stdout.write(
-    `Écart : MOYENNE +${gapMed.toFixed(2)} en médiane, MAXIMIN +${gapMin.toFixed(2)} au pire.\n\n`,
-  );
-}
-
-// --- 3. Contre-graphe (top 10 par médiane) --------------------------------
-
-process.stdout.write("=== 3. Contre-graphe (top 10 par médiane) ===\n");
-const parMediane = new Array(N_D)
-  .fill(0)
-  .map((_, i) => ({ i, ...statsD(i) }))
-  .sort((a, b) => b.med - a.med || b.min - a.min);
-const top10 = parMediane.slice(0, 10);
-for (let rang = 0; rang < top10.length; rang++) {
-  const { i, min, med } = top10[rang]!;
-  const D = defs[i]!;
-  let bestJ = 0;
-  let bestBascule = Infinity;
-  for (let j = 0; j < N_S; j++) {
-    const b = basculeMat[i * N_S + j]!;
-    if (b < bestBascule) {
-      bestBascule = b;
-      bestJ = j;
+  // 2. MAXIMIN vs MOYENNE
+  let iMaximin = 0;
+  let iMoyenne = 0;
+  let bestMin = -Infinity;
+  let bestMed = -Infinity;
+  for (let i = 0; i < N_D; i++) {
+    const s = statsD(i);
+    if (s.min > bestMin) {
+      bestMin = s.min;
+      iMaximin = i;
+    }
+    if (s.med > bestMed) {
+      bestMed = s.med;
+      iMoyenne = i;
     }
   }
-  const A = shapes[bestJ]!;
+  const sMax = statsD(iMaximin);
+  const sMoy = statsD(iMoyenne);
   process.stdout.write(
-    `  Rang ${String(rang + 1).padStart(2)} ${D.label}  méd ${fmt(med)}  →  pire ${fmt(min)} contre ${A.label}\n`,
+    `2. MAXIMIN : ${defs[iMaximin]!.label}  pire ${fmt(sMax.min)}, méd ${fmt(sMax.med)}, max ${fmt(sMax.max)}\n`,
   );
-}
-process.stdout.write("\n");
+  process.stdout.write(
+    `   MOYENNE : ${defs[iMoyenne]!.label}  pire ${fmt(sMoy.min)}, méd ${fmt(sMoy.med)}, max ${fmt(sMoy.max)}\n`,
+  );
+  if (iMaximin === iMoyenne) {
+    process.stdout.write("   ÉCHEC : identiques.\n");
+  } else {
+    const gapMed = sMoy.med - sMax.med;
+    const gapMin = sMax.min - sMoy.min;
+    process.stdout.write(
+      `   Écart : MOYENNE +${gapMed.toFixed(2)} en méd, MAXIMIN +${gapMin.toFixed(2)} au pire.\n`,
+    );
+  }
 
-// --- 4. Dominance côté horde ----------------------------------------------
+  // 3. Contre-graphe (top 10 par médiane)
+  const parMediane = new Array(N_D)
+    .fill(0)
+    .map((_, i) => ({ i, ...statsD(i) }))
+    .sort((a, b) => b.med - a.med || b.min - a.min);
+  process.stdout.write("3. Top 10 par médiane :\n");
+  for (let rang = 0; rang < Math.min(10, parMediane.length); rang++) {
+    const { i, med } = parMediane[rang]!;
+    let bestJ = 0;
+    let bestBascule = Infinity;
+    for (let j = 0; j < N_S; j++) {
+      const b = basculeMat[i * N_S + j]!;
+      if (b < bestBascule) {
+        bestBascule = b;
+        bestJ = j;
+      }
+    }
+    process.stdout.write(
+      `  ${String(rang + 1).padStart(2)}. ${defs[i]!.label}  méd ${fmt(med)}  ` +
+        `→ pire ${fmt(bestBascule)} contre ${shapes[bestJ]!.label}\n`,
+    );
+  }
 
-process.stdout.write("=== 4. Dominance côté horde ===\n");
-// Pour chaque shape, calculer la bascule du défenseur qui résiste le mieux
-// (max_D). Si ce max est bas, aucun défenseur ne résiste, shape dominante.
-const parShape: { j: number; maxD: number; minD: number; medD: number; label: string }[] = [];
-for (let j = 0; j < N_S; j++) {
-  const vals: number[] = [];
-  for (let i = 0; i < N_D; i++) vals.push(basculeMat[i * N_S + j]!);
-  parShape.push({
-    j,
-    maxD: Math.max(...vals),
-    minD: Math.min(...vals),
-    medD: median(vals),
-    label: shapes[j]!.label,
-  });
+  // 4. Dominance côté horde
+  const parShape: { j: number; maxD: number; medD: number; label: string }[] = [];
+  for (let j = 0; j < N_S; j++) {
+    const vals: number[] = [];
+    for (let i = 0; i < N_D; i++) vals.push(basculeMat[i * N_S + j]!);
+    parShape.push({
+      j,
+      maxD: Math.max(...vals),
+      medD: median(vals),
+      label: shapes[j]!.label,
+    });
+  }
+  parShape.sort((a, b) => a.maxD - b.maxD);
+  const dur = parShape[0]!;
+  process.stdout.write(
+    `4. Shape le plus dur : ${dur.label}  max_D ${fmt(dur.maxD)}, méd_D ${fmt(dur.medD)}\n`,
+  );
+  if (dur.maxD < 1.0) {
+    process.stdout.write(`   ÉCHEC : max_D < 1.0.\n`);
+  } else {
+    process.stdout.write(`   OK (aucune composition ne plafonne sous 1.0).\n`);
+  }
 }
-parShape.sort((a, b) => a.maxD - b.maxD);
-const shapeLePlusDur = parShape[0]!;
+
+// --- Main -----------------------------------------------------------
+
+const config = chargerConfig("./config/balance.json");
 process.stdout.write(
-  `Shape ennemi qui plafonne le plus les défenseurs (max_D le plus bas) :\n` +
-    `  ${shapeLePlusDur.label}   min_D ${fmt(shapeLePlusDur.minD)}, méd_D ${fmt(shapeLePlusDur.medD)}, max_D ${fmt(shapeLePlusDur.maxD)}\n`,
+  `Ratio de bascule en EFFECTIFS BRUTS (attaquant / défenseur), ` +
+    `dichotomie [${RATIO_MIN}, ${RATIO_MAX}], précision ${RATIO_PRECISION}.\n`,
 );
-if (shapeLePlusDur.maxD < 1.0) {
-  process.stdout.write(
-    `ÉCHEC : même le meilleur défenseur ne résiste pas au-delà du ratio ${fmt(shapeLePlusDur.maxD)}.\n\n`,
-  );
-} else {
-  process.stdout.write("Aucune composition ne plafonne les défenseurs sous 1.0. OK.\n\n");
-}
-
-// --- Distribution top 20 --------------------------------------------------
-
-process.stdout.write("=== Distribution — 20 meilleures répartitions (par médiane) ===\n");
-process.stdout.write(`Rang  Répartition               Pire    Méd     Max\n`);
-const top20 = parMediane.slice(0, 20);
-for (let rang = 0; rang < top20.length; rang++) {
-  const { i, min, med, max } = top20[rang]!;
-  const D = defs[i]!;
-  process.stdout.write(
-    `  ${String(rang + 1).padStart(2)}  ${D.label.padEnd(22)}  ` +
-      `${fmt(min).padStart(5)}   ${fmt(med).padStart(5)}   ${fmt(max).padStart(5)}\n`,
-  );
+for (const cfg of BENCHES) {
+  runBench(cfg, config);
 }
