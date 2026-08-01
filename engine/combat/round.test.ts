@@ -272,9 +272,9 @@ describe("resoudreRound — cas limites", () => {
 
   it("composition mixte : coef_posture = somme pondérée de la matrice sur 3 types", () => {
     // 20 souche, 10 belier, 5 muet — total 35 — posture mur
-    // mur x souche = 1.6, mur x belier = 0.5, mur x muet = 0.8
-    // coef = 20/35 × 1.6 + 10/35 × 0.5 + 5/35 × 0.8
-    const attendu = (20 / 35) * 1.6 + (10 / 35) * 0.5 + (5 / 35) * 0.8;
+    // mur x souche = 1.6, mur x belier = 0.5, mur x muet = 0.7
+    // coef = 20/35 × 1.6 + 10/35 × 0.5 + 5/35 × 0.7
+    const attendu = (20 / 35) * 1.6 + (10 / 35) * 0.5 + (5 / 35) * 0.7;
     const s = resoudreRound(
       entree({
         etat: etatRound({ abords: [{ id: "porte", effectif: 30, posture: "mur" }] }),

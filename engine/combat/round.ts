@@ -167,7 +167,21 @@ export function resoudreRound(entree: EntreeRound): SortieRound {
     const nonRompus = snapshot.filter((a) => !a.rompu);
     const totalAbordEff = nonRompus.reduce((s, a) => s + a.effectif, 0);
     const interior_eff = etat.reserve.effectif + totalAbordEff;
-    const F_interior = interior_eff * coordInterior;
+    // Interior conserve le bonus de POSTURE (RULES §6). Chaque abord
+    // non-rompu contribue avec sa posture ; la réserve avec "mur" par
+    // défaut (posture défensive de cour). Seule la fortification est
+    // perdue — on se bat dans la cour, pas sur le rempart, mais pas en
+    // chemise non plus.
+    let F_interior_base = 0;
+    for (const a of nonRompus) {
+      const coef = calcCoefPosture(a.posture, intrusion, config);
+      F_interior_base += a.effectif * coef;
+    }
+    if (etat.reserve.effectif > 0) {
+      const reserveCoef = calcCoefPosture("mur", intrusion, config);
+      F_interior_base += etat.reserve.effectif * reserveCoef;
+    }
+    const F_interior = F_interior_base * coordInterior;
     let pertes_int_def = 0;
 
     if (F_interior > 0 && F_intrusion > 0) {
@@ -285,11 +299,18 @@ export function resoudreRound(entree: EntreeRound): SortieRound {
   if (!lieu_tombe && F_intrusion > 0) {
     const surviving_intrusion = F_intrusion - pertes_intrusion;
     if (surviving_intrusion > 0) {
-      let interior_apres_eff = reserveApres.effectif;
+      // Recalcule F_interior avec l'état post-pertes (posture conservée).
+      let F_interior_apres_base = 0;
       for (const a of abordsApres) {
-        if (!a.rompu) interior_apres_eff += a.effectif;
+        if (a.rompu) continue;
+        const coef = calcCoefPosture(a.posture, intrusion, config);
+        F_interior_apres_base += a.effectif * coef;
       }
-      const F_interior_apres = interior_apres_eff * coordInterior;
+      if (reserveApres.effectif > 0) {
+        const reserveCoef = calcCoefPosture("mur", intrusion, config);
+        F_interior_apres_base += reserveApres.effectif * reserveCoef;
+      }
+      const F_interior_apres = F_interior_apres_base * coordInterior;
       if (F_interior_apres < config.combat.seuil_effondrement * surviving_intrusion) {
         lieu_tombe = true;
       }

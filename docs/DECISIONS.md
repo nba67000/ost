@@ -176,6 +176,22 @@ structurel implicite (`ceil((N-1-k)/k)`). Effet équivalent aux petites
 tailles, sémantique lisible. Écarté : biaiser E vers le bas à petit N —
 ça enlève une variable de tirage sans gain net.
 
+**Matrice de postures complétée pour donner un contre à chaque Forgé.**
+Contrainte : chaque type doit avoir au moins une posture à ≥ 1.5 (son contre)
+et au moins une à ≤ 0.7 (sa faiblesse). Sans ça, un type sans contre
+plafonne tous les défenseurs, ce qui rend certains ordres imperdables pour
+la horde. Nouvelles valeurs : `mur × chien_de_fosse = 1.5` (mur bloque la
+recherche du point faible), `fer × ecorcheur = 1.5` (élite écrase les
+troupes légères). Nouvelles faiblesses corollaires : `mur × muet = 0.7`
+(les élites de Varhal contournent les remparts), `fer × chien_de_fosse = 0.7`
+(l'élite se laisse tracer). 3 postures suffisent pour 5 types.
+
+**Interior conserve la posture, perd seulement la fortification.**
+Correction d'une erreur de spécification : "on se bat dans la cour, pas en
+chemise". La coordination reste également. Formule :
+F_interior = Σ(effectif_segment × coef_posture(posture_segment, intrusion))
+× coordination. La réserve, sans posture propre, adopte "mur" par défaut.
+
 **Pertes en rapport brut, k = 0.18.** L'ancien facteur `F_a / (F_d + F_a)`
 était borné à 1, ce qui plafonnait les pertes à `k = 35 %` de l'effectif
 adverse par round quelle que soit la supériorité. Conséquence observée au

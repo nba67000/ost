@@ -57,7 +57,7 @@
     "abords_place_forte_min": 3,
     "abords_place_forte_max": 4,
     "matrice_posture": {
-      "mur": { "souche": 1.6, "ecorcheur": 1.0, "belier": 0.5, "chien_de_fosse": 0.9, "muet": 0.8 },
+      "mur": { "souche": 1.6, "ecorcheur": 1.0, "belier": 0.5, "chien_de_fosse": 1.5, "muet": 0.7 },
       "cognee": {
         "souche": 0.9,
         "ecorcheur": 0.6,
@@ -65,7 +65,7 @@
         "chien_de_fosse": 1.0,
         "muet": 0.9
       },
-      "fer": { "souche": 0.7, "ecorcheur": 1.1, "belier": 1.0, "chien_de_fosse": 1.2, "muet": 1.6 }
+      "fer": { "souche": 0.7, "ecorcheur": 1.5, "belier": 1.0, "chien_de_fosse": 0.7, "muet": 1.6 }
     },
     "modificateurs": {
       "fortification_par_niveau": 1.1,

@@ -23,13 +23,11 @@ const TYPES: readonly TypeForge[] = ["souche", "ecorcheur", "belier", "chien_de_
 const PORTE = "porte" as AbordId;
 const POTERNE = "poterne" as AbordId;
 
-// F_d de référence pour convertir un ratio en volume ennemi.
-// Chaîne défenseur ≈ 1.85 (mur × fortif × coord) × TOTAL_GARNISON.
-const REFERENCE_F_D = 185;
-
-// Recherche du ratio de bascule.
+// Le ratio est exprimé en EFFECTIFS BRUTS assaillants / défenseurs.
+// Volume par round = ratio × TOTAL_GARNISON. Une position défendue doit
+// demander une supériorité numérique pour tomber ; c'est ce nombre qu'on lit.
 const RATIO_MIN = 0.5;
-const RATIO_MAX = 6.0;
+const RATIO_MAX = 10.0;
 const RATIO_PRECISION = 0.05;
 /** Valeur sentinelle : le défenseur tient même à RATIO_MAX (imprenable). */
 const RATIO_SENTINEL = RATIO_MAX + RATIO_PRECISION;
@@ -202,8 +200,8 @@ function abord(
 }
 
 function jouerRatio(D: DefStrat, A: AttackShape, ratio: number, config: Balance): SortieAssaut {
-  // volume par round = ratio × F_d de référence
-  const volume = ratio * REFERENCE_F_D;
+  // volume par round en effectifs bruts = ratio × TOTAL_GARNISON
+  const volume = ratio * TOTAL_GARNISON;
   const etat_initial: EtatRound = {
     lieu_id: "L001" as LieuId,
     numero_round: 1,

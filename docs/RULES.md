@@ -476,12 +476,15 @@ L'intérieur se défend, dans cet ordre :
 2. Les **garnisons des abords restants**, pour absorber le débordement.
 
 Combat intérieur :
-- **Aucun bonus de fortification.**
-- **Aucun bonus de posture.**
-- Coordination du commandant du lieu appliquée normalement.
+- **Aucun bonus de fortification** — on se bat dans la cour, pas sur le rempart.
+- **Bonus de posture PRÉSERVÉ** — on se bat dans la cour, pas en chemise.
+  Chaque abord non-rompu combat avec sa propre posture ; la réserve prend
+  la posture `mur` par défaut.
+- **Coordination** du commandant du lieu appliquée normalement.
 - Formule de pertes identique aux abords (proportionnelles simultanées).
 - Les pertes défenseur sont **absorbées d'abord par la réserve**, puis
   distribuées aux garnisons d'abords non-rompus au prorata de leur effectif.
+- `F_interior = Σ (segment_effectif × coef_posture(segment_posture, intrusion)) × coordination`
 
 **Si l'intérieur est vide ou tombe, le lieu tombe**, même si un abord tient
 encore. En pratique : tous les abords rompus, ou l'intérieur (réserve +
