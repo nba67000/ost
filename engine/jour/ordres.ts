@@ -20,6 +20,12 @@ import { effectifJoueur } from "./adapter.js";
 /**
  * Construit les garnisons du jour à partir des ordres.
  * Retourne une Map immutable prête à être posée sur l'EtatCampagne.
+ *
+ * Un joueur est INAPTE au combat si `blessure !== null && retour_combat_jour
+ * > jour_courant`. Ses ordres sont ignorés. Un joueur blessé mais dont
+ * l'inaptitude a expiré (encore présent au centre pour la convalescence)
+ * peut reprendre son poste normalement — les deux horloges sont
+ * indépendantes (RULES §9).
  */
 export function appliquerOrdres(
   garnisonsPrecedentes: ReadonlyMap<LieuId, Garnison>,
@@ -27,6 +33,7 @@ export function appliquerOrdres(
   joueurs: ReadonlyMap<JoueurId, EtatJoueur>,
   province_lieux: readonly LieuId[],
   config: Balance,
+  jour_courant: number,
 ): Map<LieuId, Garnison> {
   // Étape 1 : joueurId → position (lieu, abord, posture) ou reserve, dérivé
   // de la garnison précédente.
@@ -60,10 +67,13 @@ export function appliquerOrdres(
     if (!positionCourante.has(jid)) positionCourante.set(jid, { type: "hors" });
   }
 
-  // Étape 2 : appliquer chaque ordre.
+  // Étape 2 : appliquer chaque ordre. Ignore les inaptes au combat ;
+  // accepte les blessés dont retour_combat_jour ≤ jour_courant même s'ils
+  // sont encore présents au centre pour la convalescence.
   for (const [jid, ordre] of ordres) {
     const j = joueurs.get(jid);
-    if (j === undefined || j.blessure !== null) continue;
+    if (j === undefined) continue;
+    if (j.blessure !== null && j.blessure.retour_combat_jour > jour_courant) continue;
     if (ordre.type === "aucun_ordre") continue;
     if (ordre.type === "affecter") {
       positionCourante.set(jid, {

@@ -100,6 +100,7 @@ describe("appliquerOrdres", () => {
       joueurs,
       prov.lieux.map((x) => x.id),
       config,
+      5,
     );
     const g = res.get(lid("l"))!;
     expect(g.paquets).toHaveLength(1);
@@ -130,11 +131,12 @@ describe("appliquerOrdres", () => {
       joueurs,
       prov.lieux.map((x) => x.id),
       config,
+      5,
     );
     expect(res.get(lid("l"))?.paquets[0]?.joueurs).toEqual([jid("j1")]);
   });
 
-  it("un ordre sur un joueur blessé est ignoré", () => {
+  it("un ordre sur un joueur INAPTE au combat est ignoré", () => {
     const l = lieu("l");
     const prov = province([l], [], [], "l", "l");
     const joueurs = new Map<JoueurId, EtatJoueur>([
@@ -144,7 +146,11 @@ describe("appliquerOrdres", () => {
           id: jid("j1"),
           grade: "sergent",
           usure_restante: 12,
-          blessure: { severite: "grave", retour_jour: 100 },
+          blessure: {
+            severite: "grave",
+            retour_combat_jour: 100,
+            fin_presence_centre_jour: 100,
+          },
         },
       ],
     ]);
@@ -160,8 +166,45 @@ describe("appliquerOrdres", () => {
       joueurs,
       prov.lieux.map((x) => x.id),
       config,
+      5,
     );
     expect(res.get(lid("l"))?.paquets).toHaveLength(0);
+  });
+
+  it("un ordre sur un joueur apte au combat mais encore au centre est accepté", () => {
+    const l = lieu("l");
+    const prov = province([l], [], [], "l", "l");
+    const joueurs = new Map<JoueurId, EtatJoueur>([
+      [
+        jid("j1"),
+        {
+          id: jid("j1"),
+          grade: "sergent",
+          usure_restante: 12,
+          // Apte au combat depuis J3, encore inscrit au centre jusqu'à J6.
+          blessure: {
+            severite: "legere",
+            retour_combat_jour: 3,
+            fin_presence_centre_jour: 6,
+          },
+        },
+      ],
+    ]);
+    const garnisonsPrec = new Map<LieuId, Garnison>([
+      [lid("l"), { lieu_id: lid("l"), paquets: [], reserve: [] }],
+    ]);
+    const ordres = new Map<JoueurId, OrdreJoueur>([
+      [jid("j1"), { type: "affecter", lieu_id: lid("l"), abord_id: aid("a-l"), posture: "mur" }],
+    ]);
+    const res = appliquerOrdres(
+      garnisonsPrec,
+      ordres,
+      joueurs,
+      prov.lieux.map((x) => x.id),
+      config,
+      5,
+    );
+    expect(res.get(lid("l"))?.paquets[0]?.joueurs).toEqual([jid("j1")]);
   });
 });
 

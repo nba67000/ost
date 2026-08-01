@@ -98,6 +98,7 @@ export interface Balance {
   };
   readonly blessures: {
     readonly duree_heures: Record<"legere" | "serieuse" | "grave", number>;
+    readonly duree_presence_centre_min_heures: number;
     readonly escalade_facteur: number;
     readonly fenetre_escalade_heures: number;
     readonly places_eleves_par_blesse: number;
@@ -288,6 +289,7 @@ export const SCHEMA: SchemaNoeud = {
   },
   blessures: {
     duree_heures: { legere: "number", serieuse: "number", grave: "number" },
+    duree_presence_centre_min_heures: "number",
     escalade_facteur: "number",
     fenetre_escalade_heures: "number",
     places_eleves_par_blesse: "number",

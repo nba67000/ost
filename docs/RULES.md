@@ -766,10 +766,29 @@ chaque abord. Une défaite achète de l'information.
 - **Personne ne meurt.** Un joueur est blessé.
 - Le blessé retourne au cœur, ne peut pas combattre, **libère son poste mais conserve son
   grade**.
-- Durées `[calibrer]` : légère 6 h, sérieuse 18 h, grave 36 h.
 - Il perd son équipement en tombant — chaque blessure est une commande passée aux ateliers.
   **C'est l'impulsion économique principale du jeu.**
 - Le coût réel est payé par le royaume (un trou dans la ligne), pas par le blessé.
+
+### Deux horloges — inaptitude au combat vs présence au centre
+
+Un blessé sert **deux fonctions distinctes** dans le jeu, gouvernées par deux durées
+indépendantes.
+
+| Horloge | Rôle diégétique | Rôle mécanique | Durée par sévérité |
+|---|---|---|---|
+| **Inaptitude au combat** (`blessures.duree_heures`) | Le trou dans la ligne, le coût payé par le royaume. | Le joueur ne peut pas prendre d'ordre tant que la durée court. | 6h légère / 18h sérieuse / 36h grave |
+| **Présence au centre** (`blessures.duree_presence_centre_min_heures`) | Convalescence à la cour d'entraînement, où le vétéran forme les recrues. | Le joueur reste dans le stock du centre tant que la durée court. | Plancher unique de 36h, quelle que soit la sévérité |
+
+**Un joueur peut être à la fois en poste et présent au centre.** Un blessé léger reprend
+son abord au matin suivant (6h écoulées), mais reste inscrit à la cour d'entraînement
+encore un jour et demi. Ce n'est plus un état exclusif mais deux appartenances distinctes :
+on ne quitte pas l'infirmerie d'un coup, on reprend d'abord ce qu'on peut faire.
+
+C'est ce qui découple enfin la métrique de **flux** (combien de blessés passent par le
+centre) de la métrique de **stock** (combien y sont présents à instant t). Le stock est
+ce qui compte pour la transmission — un vétéran qui rentre le soir et repart au matin
+n'a formé personne.
 
 ### Qui est blessé
 

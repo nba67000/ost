@@ -112,6 +112,7 @@
 
   "blessures": {
     "duree_heures": { "legere": 6, "serieuse": 18, "grave": 36 },
+    "duree_presence_centre_min_heures": 36,
     "escalade_facteur": 1.5,
     "fenetre_escalade_heures": 72,
     "places_eleves_par_blesse": 3,

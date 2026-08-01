@@ -7,7 +7,9 @@
 //   4. Résoudre chaque assaut (resoudreAssaut)
 //   5. Appliquer les conséquences : pertes, blessures, usure, chutes de lieu
 //   6. Ravitaillement du jour (calculerApprovisionnement + appliquerJour)
-//   7. Retours de blessés (joueurs dont retour_jour ≤ jour + 1)
+//   7. Retours à deux horloges : apte au combat (retour_combat_jour) et
+//      sortie du centre (fin_presence_centre_jour). Un joueur peut être
+//      apte au combat et encore inscrit à la cour d'entraînement.
 //   8. Snapshot des métriques
 //
 // Fonction pure : reçoit l'état, retourne le suivant. Aucune I/O.
@@ -78,6 +80,7 @@ export function avancerJour(entree: EntreeJour): SortieJour {
     etat.joueurs,
     lieuxIds,
     config,
+    jourResolu,
   );
 
   // 2. Paramètres horde. `capacite` et `effectif_total_royaume` sont ici la
@@ -149,15 +152,26 @@ export function avancerJour(entree: EntreeJour): SortieJour {
 
     const delta = calculerConsequences(lieu, garnison, sortie, joueursCourants, config);
 
-    // Appliquer blessures : mettre à jour joueur, poser retour_jour, incrémenter compteurs.
+    // Appliquer blessures : deux horloges indépendantes.
+    //   retour_combat_jour       = jour + ceil(inaptitude / 24)
+    //   fin_presence_centre_jour = jour + ceil(max(inaptitude, presence_min) / 24)
+    // La présence au centre est toujours ≥ inaptitude — un léger qui reprend
+    // son poste au matin reste inscrit à la cour d'entraînement jusqu'à
+    // 36h après la blessure.
     for (const [jid, info] of delta.nouvelles_blessures) {
       const j = joueursCourants.get(jid);
       if (j === undefined) continue;
-      const dureeHeures = config.blessures.duree_heures[info.severite];
-      const retour = jourResolu + Math.ceil(dureeHeures / 24);
+      const dureeInapt = config.blessures.duree_heures[info.severite];
+      const dureeCentre = Math.max(dureeInapt, config.blessures.duree_presence_centre_min_heures);
+      const retourCombat = jourResolu + Math.ceil(dureeInapt / 24);
+      const finCentre = jourResolu + Math.ceil(dureeCentre / 24);
       joueursCourants.set(jid, {
         ...j,
-        blessure: { severite: info.severite, retour_jour: retour },
+        blessure: {
+          severite: info.severite,
+          retour_combat_jour: retourCombat,
+          fin_presence_centre_jour: finCentre,
+        },
       });
       blessuresDuJour[info.severite]++;
     }
@@ -222,11 +236,14 @@ export function avancerJour(entree: EntreeJour): SortieJour {
     config,
   });
 
-  // 7. Retours de blessés : ceux dont retour_jour ≤ jourResolu + 1
-  //    redeviennent disponibles pour le JOUR SUIVANT.
+  // 7. Retours à deux horloges. La blessure n'est effacée qu'à la sortie
+  //    du centre (l'horloge la plus longue) ; l'aptitude au combat est
+  //    dérivée à la demande de retour_combat_jour ≤ jour.
+  //    On compte comme "retour" une SORTIE COMPLÈTE (le joueur quitte le
+  //    centre) — c'est ce qui affecte la métrique stock.
   let retours = 0;
   for (const [jid, j] of joueursCourants) {
-    if (j.blessure !== null && j.blessure.retour_jour <= jourResolu + 1) {
+    if (j.blessure !== null && j.blessure.fin_presence_centre_jour <= jourResolu + 1) {
       joueursCourants.set(jid, { ...j, blessure: null });
       retours++;
     }
@@ -271,6 +288,18 @@ export function avancerJour(entree: EntreeJour): SortieJour {
 
 // --- Helpers ---------------------------------------------------------------
 
+/**
+ * `capacite` / `effectif_total_royaume` = Σ effectif_commande sur les
+ * joueurs APTES AU COMBAT (le seuil de RULES §7 pour dimensionner la
+ * horde). Un joueur encore inscrit au centre mais apte au combat compte,
+ * puisqu'il tiendra le rempart.
+ *
+ * Approximation en l'absence de jour_courant : on considère blessure=null
+ * comme apte. Toute blessure encore présente signifie soit inaptitude,
+ * soit convalescence — dans les deux cas on retire (la convalescence
+ * représente un joueur "affaibli" que la horde peut ne pas cibler). Choix
+ * calibrable, à revisiter à la prochaine passe.
+ */
 function calculerCapacite(joueurs: ReadonlyMap<JoueurId, EtatJoueur>, config: Balance): number {
   let s = 0;
   for (const j of joueurs.values()) {
@@ -359,7 +388,10 @@ function accumulerMetriques(
       draft_tours: actuel.draft_tours + 1,
     };
   }
-  // Blessés au centre : joueurs blessure != null APRÈS retours.
+  // Stock au centre : joueurs dont blessure existe encore APRÈS retours.
+  // La sortie du centre a été appliquée à l'étape 7 (fin_presence_centre
+  // ≤ jour+1), donc tout blessure non nulle ici implique une présence
+  // effective pour le lendemain, indépendante de l'aptitude au combat.
   let blessesAuCentre = 0;
   for (const j of joueursApresRetours.values()) if (j.blessure !== null) blessesAuCentre++;
 

@@ -29,6 +29,13 @@ export interface RapportCampagne {
     readonly moyenne: number;
     readonly minimum: number;
     readonly maximum: number;
+    /**
+     * Nombre de jours où le stock au centre est tombé sous 3.
+     * Le pilier de transmission (vétérans formant les recrues) exige un
+     * seuil de présence : trois jours d'affilée sous 3 n'est plus un
+     * pilier.
+     */
+    readonly jours_sous_3: number;
   };
   readonly blesses_au_centre_serie: readonly number[];
   readonly blessures_totales: {
@@ -58,6 +65,7 @@ export function synthetiser(res: ResultatCampagne): RapportCampagne {
   const moyenne = bc.length === 0 ? 0 : bc.reduce((a, b) => a + b, 0) / bc.length;
   const minimum = bc.length === 0 ? 0 : Math.min(...bc);
   const maximum = bc.length === 0 ? 0 : Math.max(...bc);
+  const jours_sous_3 = bc.filter((v) => v < 3).length;
 
   const premierChoix: RapportCampagne["premier_choix"] = res.etat_final.doctrines_actives.map(
     (d) => {
@@ -76,7 +84,7 @@ export function synthetiser(res: ResultatCampagne): RapportCampagne {
     resultat: res.province_est_tombee ? "tombee" : "tenue",
     jour_chute: m.jour_chute,
     lieux_tenus_fin_acte: { acte_1: acte1, acte_2: acte2, acte_3: acte3 },
-    blesses_au_centre: { moyenne, minimum, maximum },
+    blesses_au_centre: { moyenne, minimum, maximum, jours_sous_3 },
     blesses_au_centre_serie: bc,
     blessures_totales: m.blessures_totales,
     usure_consommee: m.usure_consommee,
@@ -101,8 +109,16 @@ export function rendreTexte(r: RapportCampagne): string {
       `acte 3 = ${r.lieux_tenus_fin_acte.acte_3}`,
   );
   lignes.push(
-    `Blessés au centre   : moyenne ${r.blesses_au_centre.moyenne.toFixed(1)}, ` +
+    `Stock au centre     : moyenne ${r.blesses_au_centre.moyenne.toFixed(1)}, ` +
       `minimum ${r.blesses_au_centre.minimum}, pic ${r.blesses_au_centre.maximum}`,
+  );
+  const totalJours = r.blesses_au_centre_serie.length;
+  const alerteStock =
+    r.blesses_au_centre.jours_sous_3 >= 3
+      ? "  ← alerte : pilier de transmission absent trop longtemps"
+      : "";
+  lignes.push(
+    `Jours de stock < 3  : ${r.blesses_au_centre.jours_sous_3}/${totalJours}${alerteStock}`,
   );
   lignes.push(
     `Blessures totales   : ${r.blessures_totales.legere + r.blessures_totales.serieuse + r.blessures_totales.grave} ` +

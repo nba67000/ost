@@ -15,8 +15,23 @@ import type { NomDoctrine } from "../horde/doctrines/index.js";
 
 export interface InfoBlessure {
   readonly severite: Severite;
-  /** Jour civil où le joueur redevient disponible (au matin, avant l'assaut). */
-  readonly retour_jour: number;
+  /**
+   * Jour civil où le joueur redevient apte au combat (au matin, avant
+   * l'assaut). Peut reprendre son poste ce jour-là. RULES §9 "inaptitude
+   * au combat" — durée courte, calibrée pour ne pas exclure le joueur.
+   */
+  readonly retour_combat_jour: number;
+  /**
+   * Jour civil où le joueur cesse d'être présent au centre. Horloge
+   * INDÉPENDANTE de retour_combat_jour, à plancher `duree_presence_centre_min`
+   * (36h). RULES §9 "convalescence au centre" — durée calibrée pour que le
+   * pilier de transmission (vétérans qui forment les recrues) reste peuplé.
+   *
+   * Toujours ≥ retour_combat_jour : entre les deux dates, le joueur est
+   * apte au combat ET encore inscrit à la cour d'entraînement. Deux
+   * appartenances distinctes, pas exclusives.
+   */
+  readonly fin_presence_centre_jour: number;
 }
 
 export interface EtatJoueur {
@@ -50,8 +65,10 @@ export interface MetriquesCampagne {
   readonly usure_consommee: number;
   readonly equipements_detruits: number;
   /**
-   * Effectif de joueurs blessés au centre à la fin de chaque jour, APRÈS
-   * les retours. Longueur croît d'un chaque jour simulé.
+   * Stock de joueurs présents au centre à la fin de chaque jour, APRÈS
+   * les retours (sorties du centre appliquées). Un joueur en poste mais
+   * encore inscrit à la cour compte comme présent — les deux horloges
+   * sont indépendantes. Longueur croît d'un chaque jour simulé.
    */
   readonly blesses_au_centre_par_jour: readonly number[];
   readonly lieux_royaume_par_jour: readonly number[];
