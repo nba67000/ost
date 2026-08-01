@@ -102,7 +102,8 @@ export interface Balance {
     readonly fenetre_escalade_heures: number;
     readonly places_eleves_par_blesse: number;
     readonly plafond_piste_arriere_par_lune: number;
-    readonly part_des_pertes: number;
+    readonly part_tenu: number;
+    readonly part_rompu: number;
     readonly seuils_severite: Record<"serieuse" | "grave", number>;
   };
   readonly economie: {
@@ -291,7 +292,8 @@ export const SCHEMA: SchemaNoeud = {
     fenetre_escalade_heures: "number",
     places_eleves_par_blesse: "number",
     plafond_piste_arriere_par_lune: "number",
-    part_des_pertes: "number",
+    part_tenu: "number",
+    part_rompu: "number",
     seuils_severite: { serieuse: "number", grave: "number" },
   },
   economie: {

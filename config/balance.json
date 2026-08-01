@@ -116,7 +116,8 @@
     "fenetre_escalade_heures": 72,
     "places_eleves_par_blesse": 3,
     "plafond_piste_arriere_par_lune": 100,
-    "part_des_pertes": 0.5,
+    "part_tenu": 0.25,
+    "part_rompu": 0.5,
     "seuils_severite": { "serieuse": 1.5, "grave": 3.0 }
   },
 

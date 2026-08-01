@@ -22,21 +22,37 @@ export interface EntreeAssaut {
   readonly config: Balance;
 }
 
-export interface Blessure {
-  readonly abord_id: AbordId;
-  readonly severite: Severite;
-}
-
 export interface UsureAbord {
   readonly abord_id: AbordId;
   /** 0 si aucun combat effectif ; par_assaut sinon ; +penalite si abord rompu. */
   readonly cout: number;
 }
 
+/**
+ * Détail par abord des conditions qui déterminent qui est blessé.
+ * Le CALCUL du nombre de joueurs blessés a lieu à l'étage supérieur
+ * (`engine/jour/consequences.ts`) qui connaît la composition des paquets :
+ * les blessures s'expriment en probabilité PAR JOUEUR ENGAGÉ, pas comme
+ * une fraction des effectifs perdus.
+ */
+export interface DetailBlessuresAbord {
+  readonly abord_id: AbordId;
+  /** Vrai si l'abord a subi au moins un round avec pertes_defenseur > 0. */
+  readonly a_subi_des_pertes: boolean;
+  /** Vrai si l'abord a cédé (rupture). */
+  readonly rompu: boolean;
+  /**
+   * Sévérité applicable aux joueurs blessés à cet abord si `rompu = true`.
+   * Dérivée du ratio F_a / F_d au moment de la rupture (RULES §10).
+   * Null si l'abord est tenu — dans ce cas la sévérité est légère par défaut.
+   */
+  readonly severite_si_rompu: Severite | null;
+}
+
 export interface SortieAssaut {
   readonly etat_final: EtatRound;
   readonly rounds: readonly JournalRound[];
-  readonly blessures: readonly Blessure[];
+  readonly details_blessures: readonly DetailBlessuresAbord[];
   readonly usure: readonly UsureAbord[];
   readonly issue: IssueAssaut;
   readonly rounds_utilises: number;
@@ -107,22 +123,24 @@ export function resoudreAssaut(entree: EntreeAssaut): SortieAssaut {
     }
   }
 
-  // Blessures : uniquement depuis les abords ayant CÉDÉ, à hauteur de
-  // part_des_pertes × pertes_defenseur cumulées. Sévérité déterminée au
-  // moment de la rupture. Un abord cédé sans combat ne produit pas de
-  // blessés (personne à blesser).
-  const blessures: Blessure[] = [];
-  for (const abord of etat.abords) {
-    if (!abord.rompu) continue;
+  // Détails par abord : la traduction pertes → joueurs blessés se fait à
+  // l'étage supérieur. Ici on expose seulement les CONDITIONS (a subi des
+  // pertes, rompu, sévérité à la rupture). RULES §10 : toute perte du
+  // défenseur produit des blessés, avec deux régimes selon si l'abord tient
+  // ou cède. Un abord cédé sans combat n'a pas de pertes et pas de blessés.
+  const detailsBlessures: DetailBlessuresAbord[] = etat.abords.map((abord) => {
+    const pertes = pertesDefParAbord.get(abord.abord_id) ?? 0;
+    const aSubiDesPertes = pertes > 0;
+    const rompu = abord.rompu;
     const ratio = ratioARupture.get(abord.abord_id);
-    if (ratio === undefined) continue;
-    const sev = severite(ratio, config);
-    const pertesTotal = pertesDefParAbord.get(abord.abord_id) ?? 0;
-    const nb = Math.floor(config.blessures.part_des_pertes * pertesTotal);
-    for (let i = 0; i < nb; i++) {
-      blessures.push({ abord_id: abord.abord_id, severite: sev });
-    }
-  }
+    const severiteSiRompu = rompu && ratio !== undefined ? severite(ratio, config) : null;
+    return {
+      abord_id: abord.abord_id,
+      a_subi_des_pertes: aSubiDesPertes,
+      rompu,
+      severite_si_rompu: severiteSiRompu,
+    };
+  });
 
   // Usure : par_assaut si un combat effectif a eu lieu ; +penalite_abord_rompu
   // si l'abord a cédé. 0 sinon.
@@ -137,7 +155,7 @@ export function resoudreAssaut(entree: EntreeAssaut): SortieAssaut {
   return {
     etat_final: etat,
     rounds: journaux,
-    blessures,
+    details_blessures: detailsBlessures,
     usure,
     issue,
     rounds_utilises,

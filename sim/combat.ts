@@ -150,21 +150,17 @@ function imprimerResume(sortie: SortieAssaut): void {
         : `Rounds max atteints (${sortie.rounds_utilises}), défenseur tient.`;
   out.push(`Issue : ${issueTexte}`);
 
-  // Blessures
-  const par_sev = { legere: 0, serieuse: 0, grave: 0 };
-  for (const b of sortie.blessures) par_sev[b.severite]++;
-  out.push(
-    `Blessures : ${sortie.blessures.length} au total ` +
-      `(légères ${par_sev.legere}, sérieuses ${par_sev.serieuse}, graves ${par_sev.grave})`,
+  // Détails blessures (le compte de joueurs blessés dépend des paquets — hors bench).
+  const abordsRompus = sortie.details_blessures.filter((d) => d.rompu && d.a_subi_des_pertes);
+  const abordsTenusAvecPertes = sortie.details_blessures.filter(
+    (d) => !d.rompu && d.a_subi_des_pertes,
   );
-  if (sortie.blessures.length > 0) {
-    const par_abord = new Map<string, number>();
-    for (const b of sortie.blessures) {
-      par_abord.set(b.abord_id, (par_abord.get(b.abord_id) ?? 0) + 1);
-    }
-    for (const [id, n] of par_abord) {
-      out.push(`  ${id.padEnd(10)} ${n} blessé${n > 1 ? "s" : ""}`);
-    }
+  out.push(
+    `Abords : ${abordsRompus.length} rompu(s) avec pertes, ` +
+      `${abordsTenusAvecPertes.length} tenu(s) avec pertes`,
+  );
+  for (const d of abordsRompus) {
+    out.push(`  ${d.abord_id.padEnd(10)} rompu, sévérité ${d.severite_si_rompu ?? "?"}`);
   }
 
   // Usure

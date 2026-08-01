@@ -4,7 +4,13 @@
 //   ayant combattu, +pénalité si l'abord a cédé
 // - lieux perdus (tenu_par ← "horde")
 //
-// Fonction pure : reçoit l'état, retourne un delta explicite.
+// Blessures — RULES §10 nouvelle règle :
+//   Toute perte du défenseur produit des blessés, avec deux régimes selon
+//   que l'abord tient ou cède. La proba est PAR JOUEUR ENGAGÉ (pas une
+//   fraction des effectifs perdus). Sur un paquet de P joueurs :
+//     - abord tenu   : nb_blesses = round(P × part_tenu),  sévérité légère
+//     - abord rompu  : nb_blesses = round(P × part_rompu), sévérité par ratio
+//   Sélection déterministe : les nb_blesses premiers joueurs en ordre lex.
 
 import type { Balance } from "../../config/schema.js";
 import type { LieuId, Lieu } from "../types/carte.js";
@@ -33,7 +39,7 @@ export function calculerConsequences(
   garnison: Garnison,
   sortie: SortieAssaut,
   joueurs: ReadonlyMap<JoueurId, EtatJoueur>,
-  _config: Balance,
+  config: Balance,
 ): DeltaConsequences {
   const nouvellesBlessures = new Map<JoueurId, InfoBlessure>();
   const usuresMisesAJour = new Map<JoueurId, number>();
@@ -41,25 +47,26 @@ export function calculerConsequences(
   const lieuxPerdus: LieuId[] = [];
   const pertesParAbord = new Map<import("../types/carte.js").AbordId, number>();
 
-  // 1. Blessures : les Blessure de SortieAssaut portent { abord_id, severite }.
-  //    Une blessure = un joueur retiré du paquet. On pioche en ordre lex sur
-  //    les joueurs du paquet correspondant.
-  const compteBlessures = new Map<import("../types/carte.js").AbordId, Severite[]>();
-  for (const b of sortie.blessures) {
-    const arr = compteBlessures.get(b.abord_id) ?? [];
-    arr.push(b.severite);
-    compteBlessures.set(b.abord_id, arr);
-  }
-  for (const [abord_id, severites] of compteBlessures) {
-    const paquets = garnison.paquets.filter((p) => p.abord_id === abord_id);
-    // Fusion des joueurs de tous les paquets de cet abord, triés lex.
+  // 1. Blessures — RULES §10 : proba PAR JOUEUR ENGAGÉ.
+  for (const d of sortie.details_blessures) {
+    if (!d.a_subi_des_pertes) continue;
+    const paquets = garnison.paquets.filter((p) => p.abord_id === d.abord_id);
+    // Candidats = tous les joueurs présents dans les paquets de cet abord,
+    // triés lex pour reproductibilité.
     const candidats = paquets.flatMap((p) => p.joueurs).sort();
-    for (let i = 0; i < severites.length && i < candidats.length; i++) {
+    const P = candidats.length;
+    if (P === 0) continue;
+    const taux = d.rompu ? config.blessures.part_rompu : config.blessures.part_tenu;
+    const nb = Math.round(P * taux);
+    if (nb === 0) continue;
+    const severite: Severite =
+      d.rompu && d.severite_si_rompu !== null ? d.severite_si_rompu : "legere";
+    for (let i = 0; i < nb && i < P; i++) {
       const jid = candidats[i]!;
       const j = joueurs.get(jid);
       if (j === undefined || j.blessure !== null) continue;
       nouvellesBlessures.set(jid, {
-        severite: severites[i]!,
+        severite,
         retour_jour: 0, // rempli à l'étage supérieur (avancerJour connaît le jour)
       });
     }

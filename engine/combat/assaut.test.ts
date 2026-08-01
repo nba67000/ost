@@ -211,11 +211,10 @@ describe("resoudreAssaut — propagation du flanc sur 3 rounds", () => {
   });
 });
 
-// --- Blessures ---------------------------------------------------------
+// --- Blessures — détails par abord --------------------------------------
 
-describe("resoudreAssaut — blessures", () => {
-  it("les blessés ne sortent que des abords ayant CÉDÉ", () => {
-    // porte rupt (avec combat), poterne tient (avec combat). Blessures seulement pour porte.
+describe("resoudreAssaut — details_blessures", () => {
+  it("abord rompu avec combat : rompu=true, a_subi_des_pertes=true, severite_si_rompu != null", () => {
     const s = resoudreAssaut(
       entree(
         etatInitial([
@@ -225,17 +224,29 @@ describe("resoudreAssaut — blessures", () => {
         vagues({ 1: { porte: { souche: 40 }, poterne: { souche: 10 } } }),
       ),
     );
-    // porte rompue
-    const porteApres = s.etat_final.abords.find((a) => a.abord_id === abordId("porte"))!;
-    const poterneApres = s.etat_final.abords.find((a) => a.abord_id === abordId("poterne"))!;
-    expect(porteApres.rompu).toBe(true);
-    expect(poterneApres.rompu).toBe(false);
-    // Toutes les blessures sont depuis porte
-    for (const b of s.blessures) expect(b.abord_id).toBe(abordId("porte"));
-    expect(s.blessures.length).toBeGreaterThan(0);
+    const dPorte = s.details_blessures.find((d) => d.abord_id === abordId("porte"))!;
+    const dPoterne = s.details_blessures.find((d) => d.abord_id === abordId("poterne"))!;
+    expect(dPorte.rompu).toBe(true);
+    expect(dPorte.a_subi_des_pertes).toBe(true);
+    expect(dPorte.severite_si_rompu).not.toBeNull();
+    expect(dPoterne.rompu).toBe(false);
+    expect(dPoterne.severite_si_rompu).toBeNull();
   });
 
-  it("un abord cédé sans combat ne produit aucun blessé", () => {
+  it("abord tenu ayant subi des pertes : a_subi_des_pertes=true, rompu=false", () => {
+    const s = resoudreAssaut(
+      entree(
+        etatInitial([{ id: "porte", effectif: 30, effectif_initial_assaut: 30 }]),
+        vagues({ 1: { porte: { souche: 15 } } }),
+      ),
+    );
+    const dPorte = s.details_blessures.find((d) => d.abord_id === abordId("porte"))!;
+    expect(dPorte.rompu).toBe(false);
+    expect(dPorte.a_subi_des_pertes).toBe(true);
+    expect(dPorte.severite_si_rompu).toBeNull();
+  });
+
+  it("abord cédé sans combat : rompu=true mais a_subi_des_pertes=false, severite_si_rompu=null", () => {
     const s = resoudreAssaut(
       entree(
         etatInitial([
@@ -245,27 +256,10 @@ describe("resoudreAssaut — blessures", () => {
         vagues({ 1: { porte: { souche: 20 } } }),
       ),
     );
-    // porte cede_sans_combat
-    const dPorte = s.rounds[0]!.details_abords.find((d) => d.abord_id === abordId("porte"))!;
-    expect(dPorte.cede_sans_combat).toBe(true);
-    expect(s.blessures.filter((b) => b.abord_id === abordId("porte")).length).toBe(0);
-  });
-
-  it("nombre de blessés = floor(part_des_pertes × pertes cumulées de cet abord)", () => {
-    // Un abord unique ruptured, on somme les pertes journal, on vérifie le compte.
-    const s = resoudreAssaut(
-      entree(
-        etatInitial([{ id: "porte", effectif: 10, effectif_initial_assaut: 40 }]),
-        vagues({ 1: { porte: { souche: 40 } } }),
-      ),
-    );
-    let pertes = 0;
-    for (const j of s.rounds) {
-      const d = j.details_abords.find((x) => x.abord_id === abordId("porte"));
-      if (d) pertes += d.pertes_defenseur;
-    }
-    const attendu = Math.floor(config.blessures.part_des_pertes * pertes);
-    expect(s.blessures.length).toBe(attendu);
+    const dPorte = s.details_blessures.find((d) => d.abord_id === abordId("porte"))!;
+    expect(dPorte.rompu).toBe(true);
+    expect(dPorte.a_subi_des_pertes).toBe(false);
+    expect(dPorte.severite_si_rompu).toBeNull();
   });
 });
 

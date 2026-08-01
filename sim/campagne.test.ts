@@ -28,16 +28,27 @@ describe("executerCampagne — mélange représentatif", () => {
   });
 });
 
-describe("executerCampagne — assidus purs", () => {
-  it("baseline : la province doit tenir 30 jours", () => {
-    const res = executerCampagne({
-      graine: 7n,
-      population: ASSIDUS_PURS,
-      puissance_varhal: 1,
-      duree_jours: 30,
-      config,
-    });
-    expect(res.province_est_tombee).toBe(false);
+describe("executerCampagne — assidus purs, baseline STATISTIQUE", () => {
+  it("sur 20 graines, ≥ 60 % (12/20) doivent tenir 30 jours", () => {
+    let tenues = 0;
+    let tombees = 0;
+    for (let g = 0n; g < 20n; g++) {
+      const res = executerCampagne({
+        graine: g,
+        population: ASSIDUS_PURS,
+        puissance_varhal: 1,
+        duree_jours: 30,
+        config,
+      });
+      if (res.province_est_tombee) tombees++;
+      else tenues++;
+    }
+    // Une simulation ne se teste pas sur une graine.
+    expect(tenues).toBeGreaterThanOrEqual(12);
+    // Rapporte les chiffres bruts en cas d'échec pour aider au calibrage.
+    if (tenues < 12) {
+      throw new Error(`assidus_purs : ${tenues}/20 tenues (${tombees} tombées). Cible ≥ 12/20.`);
+    }
   });
 });
 

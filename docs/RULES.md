@@ -773,11 +773,21 @@ chaque abord. Une défaite achète de l'information.
 
 ### Qui est blessé
 
-Sont blessés uniquement les défenseurs des abords **ayant cédé**, à hauteur de
-`blessures.part_des_pertes` (0.5 au départ) des pertes de cet abord.
+**Toute perte du défenseur produit des blessés**, avec deux régimes selon que l'abord
+tient ou cède. Tenir une position coûte des hommes — c'est ce qui peuple l'arrière.
 
-Les pertes des abords tenus **ne produisent pas de blessés** — elles représentent l'usure
-et le désordre, réintégrés à la garnison au round suivant.
+| État de l'abord | Taux de blessure par joueur engagé | Sévérité |
+|---|---|---|
+| Tenu (a subi des pertes) | `blessures.part_tenu` (0.25) | toujours **légère** |
+| Rompu | `blessures.part_rompu` (0.5) | dérivée du ratio à la rupture (§sévérité) |
+
+**Le taux est une probabilité PAR JOUEUR ENGAGÉ**, jamais une fraction des effectifs
+perdus. Un joueur commande de 2 à 50 hommes selon son grade ; les deux échelles
+divergent. Sur un paquet de P joueurs, le nombre déterministe de blessés vaut
+`round(P × taux)`. La sélection est déterministe : les blessés sont les `nb_blesses`
+premiers joueurs en ordre lexicographique d'ID.
+
+Un abord cédé **sans combat** (personne en défense) ne produit aucun blessé.
 
 ### Sévérité
 
