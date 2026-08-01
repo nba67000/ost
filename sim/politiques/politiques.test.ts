@@ -85,7 +85,13 @@ function etatMinimal(joueursSpec: Array<[string, EtatJoueur["grade"]]>): {
   );
   const joueurs = new Map<JoueurId, EtatJoueur>();
   for (const [nom, grade] of joueursSpec) {
-    joueurs.set(jid(nom), { id: jid(nom), grade, usure_restante: 12, blessure: null });
+    joueurs.set(jid(nom), {
+      id: jid(nom),
+      grade,
+      usure_restante: 12,
+      blessure: null,
+      transit: null,
+    });
   }
   const garnisons = new Map<LieuId, Garnison>();
   for (const l of prov.lieux) garnisons.set(l.id, { lieu_id: l.id, paquets: [], reserve: [] });

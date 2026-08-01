@@ -4,6 +4,8 @@ export { irregulier } from "./irregulier.js";
 export { egoiste } from "./egoiste.js";
 export { deserteur } from "./deserteur.js";
 export { concentrateur } from "./concentrateur.js";
+export { reactif } from "./reactif.js";
+export { prevoyant } from "./prevoyant.js";
 
 import type { NomPolitique, Politique } from "./types.js";
 import { assidu } from "./assidu.js";
@@ -11,6 +13,8 @@ import { irregulier } from "./irregulier.js";
 import { egoiste } from "./egoiste.js";
 import { deserteur } from "./deserteur.js";
 import { concentrateur } from "./concentrateur.js";
+import { reactif } from "./reactif.js";
+import { prevoyant } from "./prevoyant.js";
 
 export const POLITIQUES: Readonly<Record<NomPolitique, Politique>> = {
   assidu,
@@ -18,4 +22,6 @@ export const POLITIQUES: Readonly<Record<NomPolitique, Politique>> = {
   egoiste,
   deserteur,
   concentrateur,
+  reactif,
+  prevoyant,
 };

@@ -82,16 +82,49 @@ export function avancerJour(entree: EntreeJour): SortieJour {
   const { etat, ordres, config } = entree;
   const jourResolu = etat.jour + 1;
 
-  // 1. Ordres → nouvelles garnisons.
-  const lieuxIds = etat.province.lieux.map((l) => l.id);
-  const garnisonsApresOrdres = appliquerOrdres(
-    etat.garnisons,
+  // 0. Arrivées de transit (RULES §4). Les joueurs dont arrivee_jour ≤
+  //    jourResolu tombent en réserve du lieu de destination si celui-ci
+  //    est encore tenu. Sinon, ils restent hors carte pour la journée —
+  //    la destination a chuté pendant leur marche.
+  let joueursCourants = new Map(etat.joueurs);
+  const garnisonsAvecArrivees = new Map<LieuId, Garnison>();
+  for (const [lid, g] of etat.garnisons) {
+    garnisonsAvecArrivees.set(lid, {
+      lieu_id: g.lieu_id,
+      paquets: [...g.paquets],
+      reserve: [...g.reserve],
+    });
+  }
+  const lieuxRoyaumeSet = new Set(
+    etat.province.lieux.filter((l) => l.tenu_par === "royaume").map((l) => l.id),
+  );
+  for (const [jid, j] of joueursCourants) {
+    if (j.transit === null) continue;
+    if (j.transit.arrivee_jour > jourResolu) continue;
+    if (lieuxRoyaumeSet.has(j.transit.destination_lieu_id)) {
+      const g = garnisonsAvecArrivees.get(j.transit.destination_lieu_id);
+      if (g !== undefined) {
+        (g.reserve as JoueurId[]).push(jid);
+      }
+    }
+    joueursCourants.set(jid, { ...j, transit: null });
+  }
+
+  // 1. Ordres → nouvelles garnisons + nouveaux transits.
+  const sortieOrdres = appliquerOrdres(
+    garnisonsAvecArrivees,
     ordres,
-    etat.joueurs,
-    lieuxIds,
+    joueursCourants,
+    etat.province,
     config,
     jourResolu,
   );
+  const garnisonsApresOrdres = sortieOrdres.garnisons;
+  for (const [jid, t] of sortieOrdres.nouveaux_transits) {
+    const j = joueursCourants.get(jid);
+    if (j === undefined) continue;
+    joueursCourants.set(jid, { ...j, transit: t });
+  }
 
   // 2. Paramètres horde. `capacite` et `effectif_total_royaume` sont ici la
   // même quantité : Σ effectif_commande des joueurs actifs. Le volume ne
@@ -127,7 +160,6 @@ export function avancerJour(entree: EntreeJour): SortieJour {
   const lieuParId = new Map<LieuId, Lieu>();
   for (const l of etat.province.lieux) lieuParId.set(l.id, l);
 
-  let joueursCourants = new Map(etat.joueurs);
   const garnisonsFinales = new Map(garnisonsApresOrdres);
   const lieuxPerdus: LieuId[] = [];
   const rapportAssauts: {
@@ -423,7 +455,8 @@ function accumulerMetriques(
 
   // Couverture du pilier de transmission.
   const placesDisponibles = blessesAuCentre * config.blessures.places_eleves_par_blesse;
-  const couverture = recruesActives === 0 ? Number.POSITIVE_INFINITY : placesDisponibles / recruesActives;
+  const couverture =
+    recruesActives === 0 ? Number.POSITIVE_INFINITY : placesDisponibles / recruesActives;
 
   const lieuxRoyaume = provinceApres.lieux.filter((l) => l.tenu_par === "royaume").length;
 

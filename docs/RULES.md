@@ -285,6 +285,31 @@ En v1, les convois et escortes **ne sont pas des entités mobiles**. Escorter es
 
 Conséquence recherchée : perdre un lieu n'est jamais local, ça étrangle un voisin.
 
+### Déplacement de garnison
+
+Une garnison peut être **déplacée vers un lieu adjacent tenu par le royaume**. Un seul
+saut par ordre — pour couvrir plusieurs distances, il faut plusieurs jours d'ordres
+successifs.
+
+**Délais de transit** :
+
+| Nature du lien | Durée |
+|---|---|
+| Route | 1 jour (l'ordre est donné jour N, la troupe arrive pour l'assaut du jour N+1) |
+| Sentier | 2 jours |
+
+**En transit, la troupe ne défend rien nulle part.** Elle n'est ni à l'origine ni à la
+destination — elle marche. Un abord qu'elle vient de quitter est vide, un abord où elle
+va n'est pas encore renforcé.
+
+**Aucun plafond, aucune restriction structurelle.** Vider un lieu est autorisé, et c'est
+un risque assumé. Un général peut envoyer sa dernière garnison sur un flanc menacé et
+laisser la place forte à découvert le temps d'un jour — c'est un pari.
+
+**Conséquence recherchée** : on ne peut plus suivre le front, il faut le devancer. Cette
+règle donne enfin sa valeur au renseignement — l'espion, l'éclaireur, la patrouille
+existent pour aider à parier juste, un jour à l'avance.
+
 ---
 
 ## 5. Économie

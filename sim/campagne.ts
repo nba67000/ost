@@ -55,6 +55,7 @@ export function executerCampagne(opts: OptionsCampagne): ResultatCampagne {
         grade: spec.grade,
         usure_restante: opts.config.economie.usure_batailles_neuf,
         blessure: null,
+        transit: null,
       });
       politiqueParJoueur.set(id, spec.politique);
     }

@@ -16,6 +16,7 @@
     "campagne": "tsx sim/campagne-cli.ts",
     "campagne:diag": "tsx sim/campagne-diag.ts",
     "plafond:defense": "tsx sim/plafond-defense.ts",
+    "plafond:info": "tsx sim/plafond-info.ts",
     "volume:check": "tsx sim/volume-check.ts",
     "test": "vitest run",
     "test:watch": "vitest",

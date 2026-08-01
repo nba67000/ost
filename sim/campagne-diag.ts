@@ -54,9 +54,7 @@ function main() {
 
   // --- Table 1 : jour par jour ---------------------------------------------
   console.log("## Jour par jour");
-  console.log(
-    "jour  lieux_ry  volume    nb_frt  vol/frt   eff_def/frt  stock_ctr  couverture",
-  );
+  console.log("jour  lieux_ry  volume    nb_frt  vol/frt   eff_def/frt  stock_ctr  couverture");
   console.log("-".repeat(80));
   for (let i = 0; i < m.lieux_royaume_par_jour.length; i++) {
     const jour = i + 1;

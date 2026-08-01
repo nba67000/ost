@@ -34,6 +34,17 @@ export interface InfoBlessure {
   readonly fin_presence_centre_jour: number;
 }
 
+export interface EtatTransit {
+  /** Lieu de destination (adjacent au lieu d'origine). */
+  readonly destination_lieu_id: LieuId;
+  /**
+   * Jour civil d'arrivée au matin. Route = jour_départ + 1, sentier = +2.
+   * La troupe ne défend rien tant que ce jour n'est pas atteint. À
+   * l'arrivée, elle tombe en réserve du lieu de destination.
+   */
+  readonly arrivee_jour: number;
+}
+
 export interface EtatJoueur {
   readonly id: JoueurId;
   readonly grade: Grade;
@@ -46,6 +57,13 @@ export interface EtatJoueur {
   readonly usure_restante: number;
   /** Non null → convalescence au cœur, hors combat. */
   readonly blessure: InfoBlessure | null;
+  /**
+   * Non null → en marche vers un lieu adjacent. La troupe ne défend
+   * NULLE PART pendant le transit (RULES §4). Aucun ordre accepté tant
+   * qu'elle est en route. À l'arrivée, elle est posée en réserve du lieu
+   * de destination.
+   */
+  readonly transit: EtatTransit | null;
 }
 
 export interface MetriquesDoctrine {
@@ -118,9 +136,13 @@ export interface EtatCampagne {
  * Ordre atomique d'un joueur pour la prochaine journée.
  * - `affecter` : placer le joueur sur un abord donné avec une posture donnée.
  * - `reserve`  : joueur en réserve du lieu (non affecté à un abord).
+ * - `deplacer` : quitter le lieu actuel vers un lieu adjacent tenu.
+ *                Route = arrivée à J+1, sentier = arrivée à J+2. En transit
+ *                la troupe ne défend nulle part (RULES §4).
  * - `aucun_ordre` : le joueur reste où il était (ou en réserve globale s'il est neuf).
  *
- * Un joueur BLESSÉ voit ses ordres ignorés — il ne combat pas.
+ * Un joueur INAPTE au combat voit ses ordres ignorés — il ne combat pas.
+ * Un joueur EN TRANSIT voit ses ordres ignorés — il est occupé à marcher.
  */
 export type OrdreJoueur =
   | {
@@ -130,6 +152,7 @@ export type OrdreJoueur =
       readonly posture: import("./garnison.js").Posture;
     }
   | { readonly type: "reserve"; readonly lieu_id: LieuId }
+  | { readonly type: "deplacer"; readonly vers_lieu_id: LieuId }
   | { readonly type: "aucun_ordre" };
 
 /** Bilan d'un jour de simulation — ce que produit avancerJour à côté du nouvel état. */

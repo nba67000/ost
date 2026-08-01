@@ -86,7 +86,10 @@ describe("appliquerOrdres", () => {
     const l = lieu("l", "feu_de_guet");
     const prov = province([l], [], [], "l", "l");
     const joueurs = new Map<JoueurId, EtatJoueur>([
-      [jid("j1"), { id: jid("j1"), grade: "sergent", usure_restante: 12, blessure: null }],
+      [
+        jid("j1"),
+        { id: jid("j1"), grade: "sergent", usure_restante: 12, blessure: null, transit: null },
+      ],
     ]);
     const garnisonsPrec = new Map<LieuId, Garnison>([
       [lid("l"), { lieu_id: lid("l"), paquets: [], reserve: [] }],
@@ -94,15 +97,8 @@ describe("appliquerOrdres", () => {
     const ordres = new Map<JoueurId, OrdreJoueur>([
       [jid("j1"), { type: "affecter", lieu_id: lid("l"), abord_id: aid("a-l"), posture: "mur" }],
     ]);
-    const res = appliquerOrdres(
-      garnisonsPrec,
-      ordres,
-      joueurs,
-      prov.lieux.map((x) => x.id),
-      config,
-      5,
-    );
-    const g = res.get(lid("l"))!;
+    const res = appliquerOrdres(garnisonsPrec, ordres, joueurs, prov, config, 5);
+    const g = res.garnisons.get(lid("l"))!;
     expect(g.paquets).toHaveLength(1);
     expect(g.paquets[0]?.joueurs).toEqual([jid("j1")]);
     expect(g.paquets[0]?.effectif).toBe(config.grades.effectif_commande.sergent);
@@ -112,7 +108,10 @@ describe("appliquerOrdres", () => {
     const l = lieu("l", "feu_de_guet");
     const prov = province([l], [], [], "l", "l");
     const joueurs = new Map<JoueurId, EtatJoueur>([
-      [jid("j1"), { id: jid("j1"), grade: "sergent", usure_restante: 12, blessure: null }],
+      [
+        jid("j1"),
+        { id: jid("j1"), grade: "sergent", usure_restante: 12, blessure: null, transit: null },
+      ],
     ]);
     const garnisonsPrec = new Map<LieuId, Garnison>([
       [
@@ -125,15 +124,8 @@ describe("appliquerOrdres", () => {
       ],
     ]);
     const ordres = new Map<JoueurId, OrdreJoueur>([[jid("j1"), { type: "aucun_ordre" }]]);
-    const res = appliquerOrdres(
-      garnisonsPrec,
-      ordres,
-      joueurs,
-      prov.lieux.map((x) => x.id),
-      config,
-      5,
-    );
-    expect(res.get(lid("l"))?.paquets[0]?.joueurs).toEqual([jid("j1")]);
+    const res = appliquerOrdres(garnisonsPrec, ordres, joueurs, prov, config, 5);
+    expect(res.garnisons.get(lid("l"))?.paquets[0]?.joueurs).toEqual([jid("j1")]);
   });
 
   it("un ordre sur un joueur INAPTE au combat est ignoré", () => {
@@ -151,6 +143,7 @@ describe("appliquerOrdres", () => {
             retour_combat_jour: 100,
             fin_presence_centre_jour: 100,
           },
+          transit: null,
         },
       ],
     ]);
@@ -160,15 +153,8 @@ describe("appliquerOrdres", () => {
     const ordres = new Map<JoueurId, OrdreJoueur>([
       [jid("j1"), { type: "affecter", lieu_id: lid("l"), abord_id: aid("a-l"), posture: "mur" }],
     ]);
-    const res = appliquerOrdres(
-      garnisonsPrec,
-      ordres,
-      joueurs,
-      prov.lieux.map((x) => x.id),
-      config,
-      5,
-    );
-    expect(res.get(lid("l"))?.paquets).toHaveLength(0);
+    const res = appliquerOrdres(garnisonsPrec, ordres, joueurs, prov, config, 5);
+    expect(res.garnisons.get(lid("l"))?.paquets).toHaveLength(0);
   });
 
   it("un ordre sur un joueur apte au combat mais encore au centre est accepté", () => {
@@ -187,6 +173,7 @@ describe("appliquerOrdres", () => {
             retour_combat_jour: 3,
             fin_presence_centre_jour: 6,
           },
+          transit: null,
         },
       ],
     ]);
@@ -196,15 +183,8 @@ describe("appliquerOrdres", () => {
     const ordres = new Map<JoueurId, OrdreJoueur>([
       [jid("j1"), { type: "affecter", lieu_id: lid("l"), abord_id: aid("a-l"), posture: "mur" }],
     ]);
-    const res = appliquerOrdres(
-      garnisonsPrec,
-      ordres,
-      joueurs,
-      prov.lieux.map((x) => x.id),
-      config,
-      5,
-    );
-    expect(res.get(lid("l"))?.paquets[0]?.joueurs).toEqual([jid("j1")]);
+    const res = appliquerOrdres(garnisonsPrec, ordres, joueurs, prov, config, 5);
+    expect(res.garnisons.get(lid("l"))?.paquets[0]?.joueurs).toEqual([jid("j1")]);
   });
 });
 
@@ -213,7 +193,10 @@ describe("avancerJour : cas dégénéré aucun exposé", () => {
     const pf = lieu("pf", "place_forte", "plaine", "royaume", [abord("pf-a", 3)]);
     const prov = province([pf], [], [], "pf", "pf");
     const joueurs = new Map<JoueurId, EtatJoueur>([
-      [jid("j1"), { id: jid("j1"), grade: "general", usure_restante: 12, blessure: null }],
+      [
+        jid("j1"),
+        { id: jid("j1"), grade: "general", usure_restante: 12, blessure: null, transit: null },
+      ],
     ]);
     const garnisons = new Map<LieuId, Garnison>([
       [
@@ -250,7 +233,10 @@ describe("avancerJour : déterminisme", () => {
     const pf = lieu("pf", "place_forte", "plaine", "royaume", [abord("pf-a", 3)]);
     const prov = province([pf], [], [], "pf", "pf");
     const joueurs = new Map<JoueurId, EtatJoueur>([
-      [jid("j1"), { id: jid("j1"), grade: "general", usure_restante: 12, blessure: null }],
+      [
+        jid("j1"),
+        { id: jid("j1"), grade: "general", usure_restante: 12, blessure: null, transit: null },
+      ],
     ]);
     const garnisons = new Map<LieuId, Garnison>([
       [

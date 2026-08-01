@@ -88,9 +88,38 @@ export const PUR_CONCENTRATEUR: Population = {
   ],
 };
 
+export const PUR_REACTIF: Population = {
+  nom: "pur_reactif",
+  description: "Diagnostic : redéploie chaque jour vers les exposés d'aujourd'hui.",
+  joueurs: [
+    { grade: "general", politique: "reactif", quantite: 1 },
+    { grade: "capitaine", politique: "reactif", quantite: 2 },
+    { grade: "sergent", politique: "reactif", quantite: 4 },
+    { grade: "caporal", politique: "reactif", quantite: 6 },
+    { grade: "soldat", politique: "reactif", quantite: 8 },
+    { grade: "recrue", politique: "reactif", quantite: 10 },
+  ],
+};
+
+export const PUR_PREVOYANT: Population = {
+  nom: "pur_prevoyant",
+  description:
+    "Diagnostic : anticipe les exposés du lendemain (expansion à un hop des exposés actuels).",
+  joueurs: [
+    { grade: "general", politique: "prevoyant", quantite: 1 },
+    { grade: "capitaine", politique: "prevoyant", quantite: 2 },
+    { grade: "sergent", politique: "prevoyant", quantite: 4 },
+    { grade: "caporal", politique: "prevoyant", quantite: 6 },
+    { grade: "soldat", politique: "prevoyant", quantite: 8 },
+    { grade: "recrue", politique: "prevoyant", quantite: 10 },
+  ],
+};
+
 export const POPULATIONS: Readonly<Record<string, Population>> = {
   assidus_purs: ASSIDUS_PURS,
   melange_representatif: MELANGE_REPRESENTATIF,
   stress_deserteurs: STRESS_DESERTEURS,
   pur_concentrateur: PUR_CONCENTRATEUR,
+  pur_reactif: PUR_REACTIF,
+  pur_prevoyant: PUR_PREVOYANT,
 };
