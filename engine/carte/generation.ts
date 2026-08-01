@@ -394,8 +394,9 @@ function tenter(
         break;
     }
     const abords: Abord[] = [];
+    const fortifBase = config.carte.fortification_base[nature];
     for (let i = 0; i < nb; i++) {
-      abords.push({ id: idAbord(compteurA++), index_anneau: i, fortification: 0 });
+      abords.push({ id: idAbord(compteurA++), index_anneau: i, fortification: fortifBase });
     }
     abordsParLieu.set(idL, abords);
   }
@@ -422,8 +423,9 @@ function tenter(
     natures.set(idF, "fosse");
     terrainParLieu.set(idF, TERRAINS[rng.entier(0, TERRAINS.length - 1)]!);
     const abords: Abord[] = [];
+    const fortifFosse = config.carte.fortification_base.fosse;
     for (let i = 0; i < config.carte.abords.fosse; i++) {
-      abords.push({ id: idAbord(compteurA++), index_anneau: i, fortification: 0 });
+      abords.push({ id: idAbord(compteurA++), index_anneau: i, fortification: fortifFosse });
     }
     abordsParLieu.set(idF, abords);
     const entree = entrees[rng.entier(0, entrees.length - 1)]!;

@@ -1,11 +1,7 @@
 // npm run combat:dominance
-// Banc de validation du combat, paramétré par le nombre d'abords (k).
-// Pour chaque couple (répartition défensive, shape ennemi), cherche par
-// dichotomie le RATIO DE BASCULE en EFFECTIFS BRUTS assaillants/défenseurs.
-//
-// Canonicalise les répartitions symétriques (miroir) : sur un lieu à abords
-// équivalents, (10, 60, 30) et (60, 10, 30) sont la même stratégie. Sinon
-// le top 10 ne contient que la moitié de stratégies réelles.
+// Banc : grille (nombre d'abords) × (niveau de fortification).
+// Pour chaque cellule, cherche par dichotomie le RATIO DE BASCULE en
+// EFFECTIFS BRUTS (attaquant/défenseur) du meilleur défenseur.
 
 import { chargerConfig } from "../config/loader.js";
 import type { Balance } from "../config/schema.js";
@@ -15,8 +11,6 @@ import type { AbordId, LieuId } from "../engine/types/carte.js";
 import type { TypeForge } from "../engine/types/forge.js";
 import type { Posture } from "../engine/types/garnison.js";
 import type { ConditionReserve } from "../engine/types/ordre.js";
-
-// --- Paramètres --------------------------------------------------------
 
 const TOTAL_GARNISON = 100;
 const POSTURES: readonly Exclude<Posture, "reserve">[] = ["cognee", "fer", "mur"];
@@ -61,14 +55,18 @@ interface BenchConfig {
   readonly k: number;
   readonly pasDef: number;
   readonly pasSplit: number;
-  readonly label: string;
+  readonly nature: string;
+  readonly fortifBase: number;
 }
 
-const BENCHES: readonly BenchConfig[] = [
-  { k: 2, pasDef: 10, pasSplit: 10, label: "Feu de guet (2 abords)" },
-  { k: 3, pasDef: 10, pasSplit: 25, label: "3 abords" },
-  { k: 4, pasDef: 20, pasSplit: 25, label: "Place forte (4 abords)" },
+const CONFIGS: readonly BenchConfig[] = [
+  { k: 1, pasDef: 10, pasSplit: 100, nature: "poste_avancé", fortifBase: 0 },
+  { k: 2, pasDef: 10, pasSplit: 10, nature: "feu_de_guet", fortifBase: 1 },
+  { k: 3, pasDef: 10, pasSplit: 25, nature: "place_forte (3)", fortifBase: 3 },
+  { k: 4, pasDef: 20, pasSplit: 25, nature: "place_forte (4)", fortifBase: 3 },
 ];
+
+const FORTIF_LEVELS = [0, 1, 2, 3, 4];
 
 // --- Types -----------------------------------------------------------
 
@@ -82,7 +80,7 @@ interface DefStrat {
 }
 
 interface AttackShape {
-  readonly splits: readonly number[]; // fractions summant à 1
+  readonly splits: readonly number[];
   readonly composition: Readonly<Record<TypeForge, number>>;
   readonly nomCompo: string;
   readonly label: string;
@@ -136,7 +134,6 @@ function enumererDefs(cfg: BenchConfig, balance: Balance): DefStrat[] {
   const strats: DefStrat[] = [];
 
   function ajouterAvecPostures(alloc: number[], r: number): void {
-    // enumerate posture combos
     const nonZero: number[] = [];
     for (let i = 0; i < alloc.length; i++) if (alloc[i]! > 0) nonZero.push(i);
     const nz = nonZero.length;
@@ -240,8 +237,13 @@ function construireVague(
   return out;
 }
 
-function abord(i: number, k: number, eff: number, posture: PostureOrNone): EtatAbord {
-  // Si effectif nul, la posture est arbitraire (n'entre pas dans le combat).
+function abord(
+  i: number,
+  k: number,
+  eff: number,
+  posture: PostureOrNone,
+  fortifNiveau: number,
+): EtatAbord {
   const p: Exclude<Posture, "reserve"> = posture === "-" ? "mur" : posture;
   return {
     abord_id: abordId(i),
@@ -249,7 +251,7 @@ function abord(i: number, k: number, eff: number, posture: PostureOrNone): EtatA
     effectif_initial_assaut: eff,
     posture: p,
     voisins: voisinsAnneau(i, k).map(abordId),
-    fortification_niveau: 1,
+    fortification_niveau: fortifNiveau,
     terrain_fortification: 1,
     ravitaillement_coef: 1,
     fatigue_coef: 1,
@@ -279,10 +281,16 @@ function conditionsStandard(k: number): ConditionReserve[] {
   return conds;
 }
 
-function jouerRatio(D: DefStrat, A: AttackShape, ratio: number, balance: Balance): SortieAssaut {
+function jouerRatio(
+  D: DefStrat,
+  A: AttackShape,
+  ratio: number,
+  fortifNiveau: number,
+  balance: Balance,
+): SortieAssaut {
   const volume = ratio * TOTAL_GARNISON;
   const k = D.abords.length;
-  const abords: EtatAbord[] = D.abords.map((a, i) => abord(i, k, a, D.postures[i]!));
+  const abords: EtatAbord[] = D.abords.map((a, i) => abord(i, k, a, D.postures[i]!, fortifNiveau));
   const etat_initial: EtatRound = {
     lieu_id: "L001" as LieuId,
     numero_round: 1,
@@ -307,16 +315,16 @@ function jouerRatio(D: DefStrat, A: AttackShape, ratio: number, balance: Balance
   return resoudreAssaut(entree);
 }
 
-function bascule(D: DefStrat, A: AttackShape, balance: Balance): number {
-  const haut = jouerRatio(D, A, RATIO_MAX, balance);
+function bascule(D: DefStrat, A: AttackShape, fortifNiveau: number, balance: Balance): number {
+  const haut = jouerRatio(D, A, RATIO_MAX, fortifNiveau, balance);
   if (haut.issue !== "lieu_tombe") return RATIO_SENTINEL;
-  const bas = jouerRatio(D, A, RATIO_MIN, balance);
+  const bas = jouerRatio(D, A, RATIO_MIN, fortifNiveau, balance);
   if (bas.issue === "lieu_tombe") return RATIO_MIN;
   let lo = RATIO_MIN;
   let hi = RATIO_MAX;
   while (hi - lo > RATIO_PRECISION) {
     const mid = (lo + hi) / 2;
-    const s = jouerRatio(D, A, mid, balance);
+    const s = jouerRatio(D, A, mid, fortifNiveau, balance);
     if (s.issue === "lieu_tombe") hi = mid;
     else lo = mid;
   }
@@ -335,158 +343,92 @@ function fmt(r: number): string {
   return r >= RATIO_SENTINEL ? ">10.0" : r.toFixed(2);
 }
 
-// --- Analyse -----------------------------------------------------------
+// --- Cellule : meilleure médiane du top défenseur --------------------
 
-function runBench(cfg: BenchConfig, balance: Balance): void {
-  const defs = enumererDefs(cfg, balance);
-  const shapes = enumererShapes(cfg);
-  const N_D = defs.length;
-  const N_S = shapes.length;
-
-  process.stdout.write(
-    `\n\n=== ${cfg.label} : ${N_D} répartitions canoniques × ${N_S} shapes ` +
-      `= ${N_D * N_S} couples (pas def ${cfg.pasDef}%, pas split ${cfg.pasSplit}%) ===\n`,
-  );
-
-  const t0 = Date.now();
-  const basculeMat = new Float64Array(N_D * N_S);
-  for (let i = 0; i < N_D; i++) {
-    for (let j = 0; j < N_S; j++) {
-      basculeMat[i * N_S + j] = bascule(defs[i]!, shapes[j]!, balance);
-    }
+function meilleureMediane(
+  fortifNiveau: number,
+  balance: Balance,
+  defs: readonly DefStrat[],
+  shapes: readonly AttackShape[],
+): number {
+  let best = -Infinity;
+  for (const D of defs) {
+    const bascules: number[] = [];
+    for (const A of shapes) bascules.push(bascule(D, A, fortifNiveau, balance));
+    const med = median(bascules);
+    if (med > best) best = med;
   }
-  process.stdout.write(`Calculées en ${Date.now() - t0} ms.\n\n`);
-
-  function statsD(i: number): { min: number; med: number; max: number } {
-    const vals: number[] = [];
-    for (let j = 0; j < N_S; j++) vals.push(basculeMat[i * N_S + j]!);
-    return { min: Math.min(...vals), med: median(vals), max: Math.max(...vals) };
-  }
-
-  // 1. Dominance stricte défenseur
-  process.stdout.write("1. Dominance stricte défenseur : ");
-  let dominantD: number | null = null;
-  for (let i = 0; i < N_D; i++) {
-    let alwaysGeq = true;
-    let anyStrict = false;
-    for (let k = 0; k < N_D; k++) {
-      if (k === i) continue;
-      let subGeq = true;
-      let subStrict = false;
-      for (let j = 0; j < N_S; j++) {
-        const b1 = basculeMat[i * N_S + j]!;
-        const b2 = basculeMat[k * N_S + j]!;
-        if (b1 < b2) {
-          subGeq = false;
-          break;
-        }
-        if (b1 > b2) subStrict = true;
-      }
-      if (!subGeq) {
-        alwaysGeq = false;
-        break;
-      }
-      if (subStrict) anyStrict = true;
-    }
-    if (alwaysGeq && anyStrict) {
-      dominantD = i;
-      break;
-    }
-  }
-  if (dominantD !== null) {
-    process.stdout.write(`ÉCHEC — ${defs[dominantD]!.label} domine.\n`);
-  } else {
-    process.stdout.write("aucune. OK.\n");
-  }
-
-  // 2. MAXIMIN vs MOYENNE
-  let iMaximin = 0;
-  let iMoyenne = 0;
-  let bestMin = -Infinity;
-  let bestMed = -Infinity;
-  for (let i = 0; i < N_D; i++) {
-    const s = statsD(i);
-    if (s.min > bestMin) {
-      bestMin = s.min;
-      iMaximin = i;
-    }
-    if (s.med > bestMed) {
-      bestMed = s.med;
-      iMoyenne = i;
-    }
-  }
-  const sMax = statsD(iMaximin);
-  const sMoy = statsD(iMoyenne);
-  process.stdout.write(
-    `2. MAXIMIN : ${defs[iMaximin]!.label}  pire ${fmt(sMax.min)}, méd ${fmt(sMax.med)}, max ${fmt(sMax.max)}\n`,
-  );
-  process.stdout.write(
-    `   MOYENNE : ${defs[iMoyenne]!.label}  pire ${fmt(sMoy.min)}, méd ${fmt(sMoy.med)}, max ${fmt(sMoy.max)}\n`,
-  );
-  if (iMaximin === iMoyenne) {
-    process.stdout.write("   ÉCHEC : identiques.\n");
-  } else {
-    const gapMed = sMoy.med - sMax.med;
-    const gapMin = sMax.min - sMoy.min;
-    process.stdout.write(
-      `   Écart : MOYENNE +${gapMed.toFixed(2)} en méd, MAXIMIN +${gapMin.toFixed(2)} au pire.\n`,
-    );
-  }
-
-  // 3. Contre-graphe (top 10 par médiane)
-  const parMediane = new Array(N_D)
-    .fill(0)
-    .map((_, i) => ({ i, ...statsD(i) }))
-    .sort((a, b) => b.med - a.med || b.min - a.min);
-  process.stdout.write("3. Top 10 par médiane :\n");
-  for (let rang = 0; rang < Math.min(10, parMediane.length); rang++) {
-    const { i, med } = parMediane[rang]!;
-    let bestJ = 0;
-    let bestBascule = Infinity;
-    for (let j = 0; j < N_S; j++) {
-      const b = basculeMat[i * N_S + j]!;
-      if (b < bestBascule) {
-        bestBascule = b;
-        bestJ = j;
-      }
-    }
-    process.stdout.write(
-      `  ${String(rang + 1).padStart(2)}. ${defs[i]!.label}  méd ${fmt(med)}  ` +
-        `→ pire ${fmt(bestBascule)} contre ${shapes[bestJ]!.label}\n`,
-    );
-  }
-
-  // 4. Dominance côté horde
-  const parShape: { j: number; maxD: number; medD: number; label: string }[] = [];
-  for (let j = 0; j < N_S; j++) {
-    const vals: number[] = [];
-    for (let i = 0; i < N_D; i++) vals.push(basculeMat[i * N_S + j]!);
-    parShape.push({
-      j,
-      maxD: Math.max(...vals),
-      medD: median(vals),
-      label: shapes[j]!.label,
-    });
-  }
-  parShape.sort((a, b) => a.maxD - b.maxD);
-  const dur = parShape[0]!;
-  process.stdout.write(
-    `4. Shape le plus dur : ${dur.label}  max_D ${fmt(dur.maxD)}, méd_D ${fmt(dur.medD)}\n`,
-  );
-  if (dur.maxD < 1.0) {
-    process.stdout.write(`   ÉCHEC : max_D < 1.0.\n`);
-  } else {
-    process.stdout.write(`   OK (aucune composition ne plafonne sous 1.0).\n`);
-  }
+  return best;
 }
 
-// --- Main -----------------------------------------------------------
+// --- Main ------------------------------------------------------------
 
 const config = chargerConfig("./config/balance.json");
 process.stdout.write(
-  `Ratio de bascule en EFFECTIFS BRUTS (attaquant / défenseur), ` +
-    `dichotomie [${RATIO_MIN}, ${RATIO_MAX}], précision ${RATIO_PRECISION}.\n`,
+  `Ratio de bascule en EFFECTIFS BRUTS. Grille (nb abords × niveau de fortification).\n` +
+    `Cellule = médiane de bascule du meilleur défenseur.\n` +
+    `combat.fortification_par_niveau = ${config.combat.modificateurs.fortification_par_niveau}.\n\n`,
 );
-for (const cfg of BENCHES) {
-  runBench(cfg, config);
+
+// Précalcul des défs et shapes par config (indépendant du niveau de fortif).
+const enums = CONFIGS.map((c) => ({
+  cfg: c,
+  defs: enumererDefs(c, config),
+  shapes: enumererShapes(c),
+}));
+for (const e of enums) {
+  process.stdout.write(
+    `${e.cfg.nature.padEnd(20)} (k=${e.cfg.k}) : ${e.defs.length} défs × ${e.shapes.length} shapes\n`,
+  );
 }
+process.stdout.write("\n");
+
+const t0 = Date.now();
+const grid: number[][] = [];
+for (const e of enums) {
+  const row: number[] = [];
+  for (const fortif of FORTIF_LEVELS) {
+    const med = meilleureMediane(fortif, config, e.defs, e.shapes);
+    row.push(med);
+  }
+  grid.push(row);
+}
+process.stdout.write(`Grille calculée en ${((Date.now() - t0) / 1000).toFixed(1)}s.\n\n`);
+
+// Affichage grille
+const header = "Nature                 fortif=0  fortif=1  fortif=2  fortif=3  fortif=4";
+process.stdout.write(header + "\n");
+process.stdout.write("-".repeat(header.length) + "\n");
+for (let i = 0; i < enums.length; i++) {
+  const label = enums[i]!.cfg.nature.padEnd(22);
+  const row = grid[i]!.map((v) => fmt(v).padStart(8)).join("  ");
+  process.stdout.write(`${label} ${row}\n`);
+}
+
+// Cellule de base par nature
+process.stdout.write("\nÀ la fortification de BASE de chaque nature :\n");
+const bases: { name: string; med: number; fortif: number }[] = [];
+for (let i = 0; i < enums.length; i++) {
+  const e = enums[i]!;
+  const idx = FORTIF_LEVELS.indexOf(e.cfg.fortifBase);
+  const med = grid[i]![idx]!;
+  bases.push({ name: e.cfg.nature, med, fortif: e.cfg.fortifBase });
+  process.stdout.write(`  ${e.cfg.nature.padEnd(22)} (fortif=${e.cfg.fortifBase}) : ${fmt(med)}\n`);
+}
+
+// Inversion
+process.stdout.write("\nInversion PF > FdG > PA à la fortification de base :\n");
+const pa = bases[0]!.med;
+const fdg = bases[1]!.med;
+const pf3 = bases[2]!.med;
+const pf4 = bases[3]!.med;
+process.stdout.write(
+  `  poste_avancé ${fmt(pa)}  <  feu_de_guet ${fmt(fdg)}  <  place_forte (3) ${fmt(pf3)}  ?  ` +
+    (pa < fdg && fdg < pf3 ? "OUI" : "NON") +
+    "\n",
+);
+process.stdout.write(
+  `  poste_avancé ${fmt(pa)}  <  feu_de_guet ${fmt(fdg)}  <  place_forte (4) ${fmt(pf4)}  ?  ` +
+    (pa < fdg && fdg < pf4 ? "OUI" : "NON") +
+    "\n",
+);

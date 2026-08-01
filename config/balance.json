@@ -25,7 +25,13 @@
     "fragilite_plancher_absolu": 3,
     "entrees_min": 1,
     "entrees_max": 3,
-    "abords": { "feu_de_guet": 2, "poste_avance": 1, "fosse": 2 }
+    "abords": { "feu_de_guet": 2, "poste_avance": 1, "fosse": 2 },
+    "fortification_base": {
+      "place_forte": 3,
+      "feu_de_guet": 1,
+      "poste_avance": 0,
+      "fosse": 0
+    }
   },
 
   "grades": {
@@ -68,7 +74,7 @@
       "fer": { "souche": 0.7, "ecorcheur": 1.5, "belier": 1.0, "chien_de_fosse": 0.7, "muet": 1.6 }
     },
     "modificateurs": {
-      "fortification_par_niveau": 1.1,
+      "fortification_par_niveau": 1.35,
       "garnison_affamee": 0.6,
       "fatigue_combat_veille": 0.85,
       "usure_equipement_min": 0.7

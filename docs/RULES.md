@@ -153,6 +153,11 @@ Déterministe à partir d'une graine. Construction **par couches**, du cœur ver
             poste_avance = carte.abords.poste_avance
             fosse        = carte.abords.fosse
             Disposés en anneau.
+   Chaque abord reçoit une fortification de base selon la nature du lieu :
+     place_forte  = carte.fortification_base.place_forte  (3 par défaut)
+     feu_de_guet  = carte.fortification_base.feu_de_guet  (1 par défaut)
+     poste_avance = carte.fortification_base.poste_avance (0 par défaut)
+     fosse        = carte.fortification_base.fosse        (0 par défaut)
 
 9. Terrain : tirer un terrain dominant pour la province, puis l'attribuer
    à generation.part_terrain_dominant des lieux ; le reste tiré uniformément.

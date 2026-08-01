@@ -176,6 +176,22 @@ structurel implicite (`ceil((N-1-k)/k)`). Effet équivalent aux petites
 tailles, sémantique lisible. Écarté : biaiser E vers le bas à petit N —
 ça enlève une variable de tirage sans gain net.
 
+**Fortification de base par nature de lieu.** `carte.fortification_base` :
+place_forte 3, feu_de_guet 1, poste_avancé 0. C'est ce qui fait qu'une place
+forte est le point le plus dur de la province plutôt que le plus mince par
+homme. Sans cette différenciation, un défenseur préférait toujours grouper
+son effectif sur un feu de guet plutôt que de le répartir sur les 3-4 abords
+d'une place forte.
+
+**`combat.fortification_par_niveau` : 1.1 → 1.35.** À 1.1, trois niveaux de
+mur valaient +33 % de force — trop peu pour justifier les jours de travail
+et la file d'attente à l'ingénieur. À 1.35, trois niveaux valent ×2.46 : la
+fortification devient un investissement lisible. Validation au banc de
+dominance : la place forte à fortification de base (3) demande une bascule
+2.0-2.4× l'effectif, contre 1.5× pour le feu de guet et 1.06× pour le
+poste avancé — l'inversion place_forte > feu_de_guet > poste_avancé est
+tenue.
+
 **Matrice de postures complétée pour donner un contre à chaque Forgé.**
 Contrainte : chaque type doit avoir au moins une posture à ≥ 1.5 (son contre)
 et au moins une à ≤ 0.7 (sa faiblesse). Sans ça, un type sans contre

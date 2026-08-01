@@ -35,6 +35,12 @@ export interface Balance {
       readonly poste_avance: number;
       readonly fosse: number;
     };
+    readonly fortification_base: {
+      readonly place_forte: number;
+      readonly feu_de_guet: number;
+      readonly poste_avance: number;
+      readonly fosse: number;
+    };
   };
   readonly grades: {
     readonly seuils_effectif: Record<"caporal" | "sergent" | "capitaine" | "general", number>;
@@ -168,6 +174,12 @@ export const SCHEMA: SchemaNoeud = {
     entrees_min: "number",
     entrees_max: "number",
     abords: {
+      feu_de_guet: "number",
+      poste_avance: "number",
+      fosse: "number",
+    },
+    fortification_base: {
+      place_forte: "number",
       feu_de_guet: "number",
       poste_avance: "number",
       fosse: "number",
