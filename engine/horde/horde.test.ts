@@ -594,16 +594,55 @@ describe("orchestrerJour : offensive de fin d'acte", () => {
     expect(out.est_offensive).toBe(true);
     // 3 exposés → 3 vagues (tous attaqués).
     expect(out.vagues).toHaveLength(3);
-    // Toutes par la même doctrine (lieutenant de l'acte 1).
+    // Toutes par la même doctrine, tirée par la permutation offensive
+    // indépendante — pas nécessairement doctrines_actives[0].
     expect(new Set(out.doctrines_par_vague).size).toBe(1);
-    expect(out.doctrines_par_vague[0]).toBe("marteau");
+    expect(["marteau", "ecorcheurs", "rouleau"]).toContain(out.doctrines_par_vague[0]);
   });
 
-  it("J20 : lieutenant de l'acte 2", () => {
+  it("lieutenants offensifs : permutation indépendante de l'ordre draft", () => {
     const l1 = lieu("l1");
     const h1 = lieu("h1", "fosse", "plaine", "horde");
     const prov = province([l1, h1], [route("l1", "h1")], ["l1"], "l1", "l1");
-    const out = orchestrerJour({
+    // Trois jours d'offensive, même lune, mêmes actives → chaque acte reçoit
+    // sa propre doctrine (la permutation offensive couvre les 3 lieutenants).
+    const jours = [10, 20, 30].map((jour) =>
+      orchestrerJour({
+        jour,
+        graine_lune: 42n,
+        province: prov,
+        garnisons: new Map(),
+        volume_total: 60,
+        nb_fronts: 1,
+        config,
+        doctrines_actives: ["marteau", "ecorcheurs", "rouleau"],
+      }),
+    );
+    const lieutenants = jours.map((o) => o.doctrines_par_vague[0]!);
+    expect(new Set(lieutenants).size).toBe(3);
+    // Et l'ordre est indépendant de doctrines_actives : inverser l'ordre
+    // des actives ne change pas l'attribution par acte.
+    const joursInverses = [10, 20, 30].map((jour) =>
+      orchestrerJour({
+        jour,
+        graine_lune: 42n,
+        province: prov,
+        garnisons: new Map(),
+        volume_total: 60,
+        nb_fronts: 1,
+        config,
+        doctrines_actives: ["rouleau", "ecorcheurs", "marteau"],
+      }),
+    );
+    const lieutenantsInverses = joursInverses.map((o) => o.doctrines_par_vague[0]!);
+    expect(lieutenantsInverses).toEqual(lieutenants);
+  });
+
+  it("J20 : le lieutenant de l'acte 2 est stable à graine égale", () => {
+    const l1 = lieu("l1");
+    const h1 = lieu("h1", "fosse", "plaine", "horde");
+    const prov = province([l1, h1], [route("l1", "h1")], ["l1"], "l1", "l1");
+    const params = {
       jour: 20,
       graine_lune: 42n,
       province: prov,
@@ -611,8 +650,10 @@ describe("orchestrerJour : offensive de fin d'acte", () => {
       volume_total: 60,
       nb_fronts: 1,
       config,
-      doctrines_actives: ["marteau", "ecorcheurs", "rouleau"],
-    });
-    expect(out.doctrines_par_vague[0]).toBe("ecorcheurs");
+      doctrines_actives: ["marteau", "ecorcheurs", "rouleau"] as NomDoctrine[],
+    };
+    const a = orchestrerJour(params);
+    const b = orchestrerJour(params);
+    expect(a.doctrines_par_vague[0]).toBe(b.doctrines_par_vague[0]);
   });
 });

@@ -80,7 +80,13 @@ export function orchestrerJour(entree: EntreeJourHorde): SortieJourHorde {
   // --- Offensive de fin d'acte -------------------------------------------
   if (estOffensive) {
     const acte = Math.floor((entree.jour - 1) / DUREE_ACTE_JOURS); // 0, 1 ou 2
-    const lieutenant = doctrinesActives[acte % doctrinesActives.length]!;
+    // Le lieutenant offensif est tiré INDÉPENDAMMENT de l'ordre de
+    // `tirerDoctrinesLune`. Sinon la position de tirage d'une doctrine
+    // dans la lune déciderait mécaniquement quel palier majeur (J10/J20/J30)
+    // elle enflammerait — les trois moments les plus marquants méritent
+    // leur propre permutation.
+    const lieutenants = permuterLieutenants(doctrinesActives, entree.graine_lune);
+    const lieutenant = lieutenants[acte % lieutenants.length]!;
     const volumeAmpli = entree.volume_total * config.horde.multiplicateur_offensive;
     // Tous les exposés attaqués, dans l'ordre de préférence du lieutenant.
     const ordonne = DOCTRINES[lieutenant].preferer(exposes, {
@@ -165,6 +171,29 @@ export function orchestrerJour(entree: EntreeJourHorde): SortieJourHorde {
 }
 
 // --- Helpers ---------------------------------------------------------------
+
+/**
+ * Permutation stable des lieutenants offensifs, dérivée de la graine de lune
+ * sur un contexte propre (« lieutenants ») indépendant du tirage des
+ * doctrines actives et de l'ordre draft du jour.
+ */
+function permuterLieutenants(
+  actives: readonly NomDoctrine[],
+  graine_lune: bigint,
+): readonly NomDoctrine[] {
+  // Canonicalisation par tri lexicographique : rend le résultat totalement
+  // indépendant de l'ordre d'entrée. Deux appels avec les MÊMES actives
+  // mais dans un ordre différent produisent la même permutation.
+  const rng = creerRng(graine_lune).deriver("lieutenants");
+  const copie = [...actives].sort((a, b) => a.localeCompare(b, "en"));
+  for (let i = copie.length - 1; i > 0; i--) {
+    const j = rng.entier(0, i);
+    const tmp = copie[i]!;
+    copie[i] = copie[j]!;
+    copie[j] = tmp;
+  }
+  return copie;
+}
 
 function ordonnerDoctrines(
   actives: readonly NomDoctrine[],

@@ -290,11 +290,17 @@ première tirée l'emporte, la seconde prend son deuxième choix. Ça évite la
 partition rigide en `nb_fronts / 3` chunks qui ferait perdre l'expression
 individuelle des règles de préférence sur les cartes à peu d'exposés.
 
-**Offensives J10/J20/J30 en v1 : lieutenant unique, aucune spécialisation.**
-Le volume est multiplié par `horde.multiplicateur_offensive`, tous les
-exposés reçoivent une vague, et `doctrines_actives[acte − 1]` prend la main
-sur toutes les cibles. Différencier le comportement offensif par doctrine
-attendra que la simulation exige la distinction — on ne préempte pas.
+**Offensives J10/J20/J30 : permutation propre des lieutenants.** Le volume
+est multiplié par `horde.multiplicateur_offensive`, tous les exposés reçoivent
+une vague, et un seul lieutenant prend la main. Sa désignation NE réutilise
+PAS l'ordre du tirage de lune : une permutation indépendante des trois
+doctrines actives est dérivée du contexte `lieutenants` sur la graine de
+lune, sur les doctrines actives d'abord triées lexicographiquement pour
+neutraliser l'ordre d'entrée. Sinon la position de tirage d'une doctrine
+déciderait mécaniquement à quel palier majeur elle enflammerait — les trois
+moments les plus marquants de la campagne méritent leur propre tirage.
+Différencier le comportement offensif par doctrine (au-delà du choix du
+lieutenant) attendra que la simulation exige la distinction.
 
 ---
 

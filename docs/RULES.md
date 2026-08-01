@@ -711,8 +711,12 @@ Un lieu est *exposé* s'il est adjacent à un lieu tenu par la horde ou à une e
 
 - volume multiplié par `horde.multiplicateur_offensive`
 - **Tous les lieux exposés sont attaqués simultanément**, quel que soit `nb_fronts`
-- Un seul lieutenant prend la main : `doctrines_actives[acte − 1]` où `acte = ⌈jour/10⌉`.
-  Il ordonne les exposés selon sa préférence, chaque exposé reçoit une vague.
+- Un seul lieutenant prend la main. La liste des trois lieutenants est une
+  **permutation propre** des doctrines actives, dérivée de la graine de lune sur un
+  contexte indépendant (« lieutenants ») : l'ordre dans lequel les doctrines ont été
+  tirées pour la lune n'entre pas dans cette permutation. Le lieutenant du jour est
+  `lieutenants[acte − 1]` où `acte = ⌈jour/10⌉`. Il ordonne les exposés selon sa
+  préférence, chaque exposé reçoit une vague.
 
 ---
 
