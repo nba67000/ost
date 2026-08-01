@@ -160,15 +160,15 @@ export function resoudreRound(entree: EntreeRound): SortieRound {
   let pertes_reserve_interior = 0;
   const pertes_abord_interior = new Map<AbordId, number>();
   let interiorDetail: DetailInterior | null = null;
+  let pertes_intrusion = 0;
+  const coordInterior = config.grades.coordination[etat.reserve.commandant_grade];
 
   if (F_intrusion > 0) {
     const nonRompus = snapshot.filter((a) => !a.rompu);
     const totalAbordEff = nonRompus.reduce((s, a) => s + a.effectif, 0);
     const interior_eff = etat.reserve.effectif + totalAbordEff;
-    const coord = config.grades.coordination[etat.reserve.commandant_grade];
-    const F_interior = interior_eff * coord;
+    const F_interior = interior_eff * coordInterior;
     let pertes_int_def = 0;
-    let pertes_intrusion = 0;
 
     if (interior_eff > 0) {
       const total = F_interior + F_intrusion;
@@ -269,13 +269,32 @@ export function resoudreRound(entree: EntreeRound): SortieRound {
     flanque_ce_round: flanquePourProchain.has(a.abord_id),
   }));
 
-  const lieu_tombe = abordsApres.every((a) => a.rompu);
+  // Lieu tombe : condition classique (tous rompus).
+  let lieu_tombe = abordsApres.every((a) => a.rompu);
 
   // Réserve après le combat intérieur.
   let reserveApres = {
     ...etat.reserve,
     effectif: Math.max(0, etat.reserve.effectif - pertes_reserve_interior),
   };
+
+  // RUPTURE DU LIEU par effondrement de l'intérieur (RULES §6).
+  // Si l'intérieur a été engagé ce round et que sa force effective ne
+  // suffit plus à contenir l'intrusion survivante, le lieu tombe même
+  // si un abord tient encore.
+  if (!lieu_tombe && F_intrusion > 0) {
+    const surviving_intrusion = F_intrusion - pertes_intrusion;
+    if (surviving_intrusion > 0) {
+      let interior_apres_eff = reserveApres.effectif;
+      for (const a of abordsApres) {
+        if (!a.rompu) interior_apres_eff += a.effectif;
+      }
+      const F_interior_apres = interior_apres_eff * coordInterior;
+      if (F_interior_apres < config.combat.seuil_effondrement * surviving_intrusion) {
+        lieu_tombe = true;
+      }
+    }
+  }
 
   // Étape 7 : réserve (skip si lieu tombe).
   const engagements: EngagementReserve[] = [];

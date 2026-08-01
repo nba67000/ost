@@ -51,6 +51,7 @@
     "malus_flanc_apres_rupture": 0.7,
     "malus_engagement_reserve": 0.8,
     "part_reserve_max": 0.4,
+    "seuil_effondrement": 0.5,
     "clamp_force_min": 0.3,
     "clamp_force_max": 3.0,
     "abords_place_forte_min": 3,

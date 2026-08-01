@@ -54,6 +54,7 @@ export interface Balance {
     readonly malus_flanc_apres_rupture: number;
     readonly malus_engagement_reserve: number;
     readonly part_reserve_max: number;
+    readonly seuil_effondrement: number;
     readonly clamp_force_min: number;
     readonly clamp_force_max: number;
     readonly abords_place_forte_min: number;
@@ -204,6 +205,7 @@ export const SCHEMA: SchemaNoeud = {
     malus_flanc_apres_rupture: "number",
     malus_engagement_reserve: "number",
     part_reserve_max: "number",
+    seuil_effondrement: "number",
     clamp_force_min: "number",
     clamp_force_max: "number",
     abords_place_forte_min: "number",

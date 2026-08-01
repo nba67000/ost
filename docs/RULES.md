@@ -491,6 +491,29 @@ sur sa force effective. Le malus ne dure qu'un round.
 
 Être en place au début vaut mieux que réagir à effectif égal.
 
+### Rupture du lieu par effondrement de l'intérieur
+
+À la fin de chaque round **où l'intérieur est engagé** (au moins un abord
+rompu au début du round), comparer :
+
+- **F_intérieur** après pertes = (réserve restante + garnisons des abords
+  non-rompus) × coordination du commandant.
+- **F_intrusion survivant** = Forgés entrés par la brèche moins les pertes
+  qu'ils ont subies ce round.
+
+Si
+
+```
+F_intérieur  <  combat.seuil_effondrement × F_intrusion_survivant
+```
+
+le lieu **tombe immédiatement**, quel que soit l'état des abords restants
+et le nombre de rounds écoulés. `combat.seuil_effondrement = 0.5` par
+défaut.
+
+Effet : percer un abord n'est plus une étape parmi d'autres, c'est le
+basculement de l'assaut.
+
 ### Plafond de réserve
 
 À la construction de l'ordre, la réserve ne peut pas excéder

@@ -176,6 +176,13 @@ structurel implicite (`ceil((N-1-k)/k)`). Effet équivalent aux petites
 tailles, sémantique lisible. Écarté : biaiser E vers le bas à petit N —
 ça enlève une variable de tirage sans gain net.
 
+**Rupture du lieu par effondrement.** Ajout d'une condition d'arrêt : à la
+fin d'un round où l'intérieur est engagé, si `F_intérieur < 0.5 × F_intrusion_survivant`,
+le lieu tombe. Redonne aux abords un prix — leur chute n'est plus une simple
+comptabilité, c'est le basculement. Écarté : rendre la rupture immédiate
+sur un ratio de force pré-combat — trop mécanique, ne prend pas en compte
+la capacité de l'intérieur à absorber en un round.
+
 **Brèche, malus d'engagement, plafond de réserve.** Le banc de dominance a
 révélé que "quasi-tout en réserve" (r=80-90) gagnait 100 % contre toute
 composition. Trois corrections couplées :
