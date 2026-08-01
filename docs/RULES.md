@@ -661,8 +661,28 @@ Vague = { lieu_id, abord_id, composition: Record<TypeForge, number> }
 
 **Six doctrines au total** (`horde.doctrines_total`), **trois tirées par lune** à partir
 de la graine (`horde.doctrines_par_lune`). Chacune définit un profil de composition fixe
-et une règle de ciblage — par exemple : viser systématiquement l'abord le moins garni,
-viser le lieu le plus mal ravitaillé, concentrer sur un seul lieu, feinter puis basculer.
+et une règle de ciblage. Toute règle s'applique **uniquement parmi les lieux exposés du
+jour** — jamais sur un lieu que la horde ne peut pas atteindre.
+
+| Doctrine | Composition | Préférence de lieu (parmi exposés) | Abord ciblé |
+|---|---|---|---|
+| **Marteau** | 70 % bélier · 30 % souche | Le plus fortifié | Le plus fortifié |
+| **Écorcheurs** | 100 % écorcheur | Le moins fortifié | Le moins fortifié |
+| **Meute** | 60 % chien_de_fosse · 40 % souche | Le plus faiblement garni | Le moins garni |
+| **Rouleau** | 100 % souche | Aucune (ordre lexicographique) | Le plus petit ID |
+| **Garde** | 50 % muet · 50 % souche | `entree_principale` si exposée, sinon le plus proche BFS d'elle | Le moins fortifié |
+| **Serpent** | 100 % muet | `place_forte` si exposée, sinon la plus fortifiée | Permutation dérivée de la graine de lune : `abord = perm[(jour − 1) mod nb_abords]` |
+
+**Clause disposition ≠ historique.** La Meute est la seule doctrine qui LIT l'état
+défensif du jour (effectifs par lieu et par abord). Elle ne consulte pas pour autant
+l'historique des assauts — la règle §7-4 est respectée. La distinction est réelle : réagir
+à la garnison observée le matin de l'assaut n'apprend pas à un joueur que réussir est puni,
+puisque la garnison reflète les priorités du jour, pas les victoires passées.
+
+**Serpent : la permutation meurt à la fin de la lune.** Chaque nouvelle lune tire une
+permutation neuve, propre à chaque lieu ciblé. C'est le savoir qu'un vétéran conserve
+d'une campagne à l'autre : la capacité à lire un chiffrement quotidien, pas la formule
+elle-même.
 
 ### Distribution temporelle
 
@@ -681,16 +701,18 @@ Un lieu est *exposé* s'il est adjacent à un lieu tenu par la horde ou à une e
 
 - **Un assaut par jour et par front.** Jamais deux assauts sur le même lieu le même jour.
 - Les doctrines actives de la lune (`horde.doctrines_par_lune`) se partagent les fronts
-  du jour, à parts égales, dans un ordre dérivé de la graine. Chaque doctrine choisit
-  ses cibles et sa composition parmi les fronts qui lui sont attribués.
+  du jour en **draft snake** : dans un ordre dérivé de la graine du jour, chacune pioche
+  à son tour son lieu le plus préféré parmi les exposés encore libres, jusqu'à saturer
+  `nb_fronts`.
 - Le volume total du jour est réparti entre les fronts **au prorata de leur importance
   topologique** : un goulot reçoit une part `horde.part_goulot` fois plus grosse.
 
 **Offensives de fin d'acte** — aux jours 10, 20 et 30 :
 
 - volume multiplié par `horde.multiplicateur_offensive`
-- **Tous les fronts sont attaqués simultanément**, quel que soit `nb_fronts`
-- La doctrine du lieutenant de l'acte prend la main sur toutes les cibles
+- **Tous les lieux exposés sont attaqués simultanément**, quel que soit `nb_fronts`
+- Un seul lieutenant prend la main : `doctrines_actives[acte − 1]` où `acte = ⌈jour/10⌉`.
+  Il ordonne les exposés selon sa préférence, chaque exposé reçoit une vague.
 
 ---
 

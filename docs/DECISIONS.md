@@ -250,6 +250,54 @@ d'assaut plutôt que par la topologie tactique.
 
 ---
 
+## Doctrines de horde — six règles publiques, apprenables en 3-4 assauts
+
+Six doctrines fixées (`horde.doctrines_total = 6`), trois tirées par lune. La
+contrainte de conception : **chaque doctrine doit être reconnaissable en
+3-4 assauts** — un vétéran qui a vu deux ou trois lunes doit pouvoir nommer
+la doctrine du jour rien qu'à sa signature publique (composition, lieu
+choisi, abord frappé).
+
+Trois axes couverts :
+
+- **Concentré vs diffus** — Marteau, Garde, Serpent frappent un seul lieu ;
+  Écorcheurs et Rouleau étalent sur toute la ceinture.
+- **Ciblage** — par fortification (Marteau, Écorcheurs), par nature du lieu
+  (Serpent → PF), par position (Garde → entrée principale), par disposition
+  observée (Meute → moins garni), sans préférence (Rouleau).
+- **Riposte** — chaque composition a une posture dominante dans la matrice.
+  Identifier la doctrine gagne un cran de fortification effective.
+
+**Meute : disposition oui, historique non.** La Meute lit l'effectif de
+garnison du jour de l'assaut. Ce n'est pas une adaptation au succès (la §7-4
+l'interdit) : la garnison du jour reflète les priorités du joueur pour ce
+jour, pas ses victoires passées. Réagir à un flanc négligé le matin même ne
+punit pas la réussite, ça punit la négligence. Diégétiquement, les chiens
+de fosse sont des pisteurs — la doctrine devait exister.
+
+**Serpent : permutation par lune, pas rotation arithmétique.** Une rotation
+`jour % nb_abords` serait rétro-conçue, publiée, morte pour toujours. Une
+permutation dérivée de la graine de lune se réapprend à chaque campagne —
+c'est le savoir qu'un vétéran conserve : la capacité à lire un chiffrement
+quotidien, pas la formule elle-même. L'implémentation dérive une permutation
+par (graine_lune, lieu_id), indexée par `(jour − 1) mod nb_abords`.
+
+**Draft snake plutôt qu'attribution égale.** Les trois doctrines actives se
+disputent les fronts du jour en style draft : dans un ordre dérivé de la
+graine du jour, chacune pioche son lieu préféré à tour de rôle jusqu'à
+`nb_fronts`. Deux doctrines peuvent donc « vouloir » le même lieu — la
+première tirée l'emporte, la seconde prend son deuxième choix. Ça évite la
+partition rigide en `nb_fronts / 3` chunks qui ferait perdre l'expression
+individuelle des règles de préférence sur les cartes à peu d'exposés.
+
+**Offensives J10/J20/J30 en v1 : lieutenant unique, aucune spécialisation.**
+Le volume est multiplié par `horde.multiplicateur_offensive`, tous les
+exposés reçoivent une vague, et `doctrines_actives[acte − 1]` prend la main
+sur toutes les cibles. Différencier le comportement offensif par doctrine
+attendra que la simulation exige la distinction — on ne préempte pas.
+
+---
+
 ## Questions ouvertes
 
 - Proportion de vétérans présents au centre à un instant donné. Tout le pilier de
