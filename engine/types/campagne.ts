@@ -16,22 +16,32 @@ import type { NomDoctrine } from "../horde/doctrines/index.js";
 export interface InfoBlessure {
   readonly severite: Severite;
   /**
-   * Jour civil où le joueur redevient apte au combat (au matin, avant
-   * l'assaut). Peut reprendre son poste ce jour-là. RULES §9 "inaptitude
-   * au combat" — durée courte, calibrée pour ne pas exclure le joueur.
-   */
-  readonly retour_combat_jour: number;
-  /**
-   * Jour civil où le joueur cesse d'être présent au centre. Horloge
-   * INDÉPENDANTE de retour_combat_jour, à plancher `duree_presence_centre_min`
-   * (36h). RULES §9 "convalescence au centre" — durée calibrée pour que le
-   * pilier de transmission (vétérans qui forment les recrues) reste peuplé.
+   * Heure absolue depuis t0 (début du J1 = heure 0) à laquelle le joueur
+   * redevient apte au combat. Discrétisation en HEURES et non en jours :
+   * le ceil() sur les jours faisait sortir toutes les blessures d'un
+   * même jour ensemble et amplifiait les oscillations.
    *
-   * Toujours ≥ retour_combat_jour : entre les deux dates, le joueur est
-   * apte au combat ET encore inscrit à la cour d'entraînement. Deux
-   * appartenances distinctes, pas exclusives.
+   * Convention : l'assaut a lieu à 21h civile (RULES §2), donc une
+   * blessure au jour J porte `heure_blessure = (J−1)×24 + 21`. Le retour
+   * au combat vaut `heure_blessure + duree_inaptitude_heures`.
+   *
+   * Le joueur est APTE au combat pour l'assaut du jour K si
+   * `retour_combat_heure ≤ (K−1)×24 + 21` (l'heure de l'assaut).
    */
-  readonly fin_presence_centre_jour: number;
+  readonly retour_combat_heure: number;
+  /**
+   * Heure absolue depuis t0 à laquelle le joueur cesse d'être présent au
+   * centre. Horloge INDÉPENDANTE de retour_combat_heure, plancher fixé
+   * par `duree_presence_centre_min_heures` (RULES §9, deux horloges).
+   *
+   * Toujours ≥ retour_combat_heure. Entre les deux, le joueur est apte
+   * au combat ET inscrit à la cour d'entraînement — deux appartenances
+   * distinctes, pas exclusives.
+   *
+   * Le joueur EST au centre à la fin du jour K si
+   * `fin_presence_centre_heure > K×24` (minuit de fin de K).
+   */
+  readonly fin_presence_centre_heure: number;
 }
 
 export interface EtatTransit {

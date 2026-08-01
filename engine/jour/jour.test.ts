@@ -140,8 +140,10 @@ describe("appliquerOrdres", () => {
           usure_restante: 12,
           blessure: {
             severite: "grave",
-            retour_combat_jour: 100,
-            fin_presence_centre_jour: 100,
+            // Blessure au J1 (h=21) + 36h → retour_combat = 57.
+            // Assaut J100 = h = 99*24 + 21 = 2397. 100000 >> 2397.
+            retour_combat_heure: 100_000,
+            fin_presence_centre_heure: 100_000,
           },
           transit: null,
         },
@@ -167,11 +169,15 @@ describe("appliquerOrdres", () => {
           id: jid("j1"),
           grade: "sergent",
           usure_restante: 12,
-          // Apte au combat depuis J3, encore inscrit au centre jusqu'à J6.
+          // Apte au combat depuis J3 (heure 2*24 + 21 = 69), encore
+          // inscrit au centre jusqu'à J6 (heure 5*24 + 21 = 141).
+          // Test au J5 (heure d'assaut = 4*24 + 21 = 117) : apte car
+          // retour_combat_heure = 60 ≤ 117 ; encore présent au centre car
+          // fin_presence_centre_heure = 141 > 5*24 = 120.
           blessure: {
             severite: "legere",
-            retour_combat_jour: 3,
-            fin_presence_centre_jour: 6,
+            retour_combat_heure: 60,
+            fin_presence_centre_heure: 141,
           },
           transit: null,
         },

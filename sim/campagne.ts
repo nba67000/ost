@@ -9,7 +9,7 @@ import type { NomPolitique, Politique } from "./politiques/types.js";
 import type { OrdreJoueur } from "../engine/types/campagne.js";
 import type { LieuId } from "../engine/types/carte.js";
 import { POLITIQUES } from "./politiques/index.js";
-import { placementInitial } from "./placement.js";
+import { placementInitial, placementInitialSurExposes } from "./placement.js";
 import { avancerJour, metriquesVides } from "../engine/jour/index.js";
 import { genererCarte } from "../engine/carte/generation.js";
 import { tirerDoctrinesLune } from "../engine/horde/doctrines/index.js";
@@ -22,6 +22,14 @@ export interface OptionsCampagne {
   readonly puissance_varhal: number;
   readonly duree_jours: number;
   readonly config: Balance;
+  /**
+   * Placement au J0 :
+   * - "grade"    (défaut) : distribution par grade sur PF/feux/postes.
+   * - "exposes"           : greedy sur les abords des lieux exposés, poids
+   *   goulot × part_goulot. Sert à comparer équitablement des politiques
+   *   qui n'ont pas le luxe du redéploiement instantané.
+   */
+  readonly placement_initial?: "grade" | "exposes";
 }
 
 export interface ResultatCampagne {
@@ -62,7 +70,10 @@ export function executerCampagne(opts: OptionsCampagne): ResultatCampagne {
   }
 
   // 3. Placement initial.
-  const garnisonsInitiales = placementInitial(province, joueurs, opts.config);
+  const garnisonsInitiales =
+    opts.placement_initial === "exposes"
+      ? placementInitialSurExposes(province, joueurs, opts.config)
+      : placementInitial(province, joueurs, opts.config);
 
   // 4. Vivres initiaux = capacité maximale par nature.
   const vivres = new Map<LieuId, number>();

@@ -194,25 +194,24 @@ export function avancerJour(entree: EntreeJour): SortieJour {
 
     const delta = calculerConsequences(lieu, garnison, sortie, joueursCourants, config);
 
-    // Appliquer blessures : deux horloges indépendantes.
-    //   retour_combat_jour       = jour + ceil(inaptitude / 24)
-    //   fin_presence_centre_jour = jour + ceil(max(inaptitude, presence_min) / 24)
-    // La présence au centre est toujours ≥ inaptitude — un léger qui reprend
-    // son poste au matin reste inscrit à la cour d'entraînement jusqu'à
-    // 36h après la blessure.
+    // Appliquer blessures : deux horloges INDÉPENDANTES, à l'HEURE.
+    //   heure_blessure           = (jour − 1) × 24 + 21  (assaut à 21h civile)
+    //   retour_combat_heure      = heure_blessure + inaptitude_heures
+    //   fin_presence_centre_heure = heure_blessure + max(inaptitude, plancher_centre)
+    // La discrétisation à l'heure évite l'effet ceil() qui faisait sortir
+    // toutes les blessures d'un même jour ensemble.
+    const heureBlessure = (jourResolu - 1) * 24 + 21;
     for (const [jid, info] of delta.nouvelles_blessures) {
       const j = joueursCourants.get(jid);
       if (j === undefined) continue;
       const dureeInapt = config.blessures.duree_heures[info.severite];
       const dureeCentre = Math.max(dureeInapt, config.blessures.duree_presence_centre_min_heures);
-      const retourCombat = jourResolu + Math.ceil(dureeInapt / 24);
-      const finCentre = jourResolu + Math.ceil(dureeCentre / 24);
       joueursCourants.set(jid, {
         ...j,
         blessure: {
           severite: info.severite,
-          retour_combat_jour: retourCombat,
-          fin_presence_centre_jour: finCentre,
+          retour_combat_heure: heureBlessure + dureeInapt,
+          fin_presence_centre_heure: heureBlessure + dureeCentre,
         },
       });
       blessuresDuJour[info.severite]++;
@@ -278,14 +277,13 @@ export function avancerJour(entree: EntreeJour): SortieJour {
     config,
   });
 
-  // 7. Retours à deux horloges. La blessure n'est effacée qu'à la sortie
-  //    du centre (l'horloge la plus longue) ; l'aptitude au combat est
-  //    dérivée à la demande de retour_combat_jour ≤ jour.
-  //    On compte comme "retour" une SORTIE COMPLÈTE (le joueur quitte le
-  //    centre) — c'est ce qui affecte la métrique stock.
+  // 7. Retours à deux horloges (heures). La blessure n'est effacée qu'à
+  //    la sortie du centre (l'horloge la plus longue). Un joueur est HORS
+  //    du centre à la fin du jour K si fin_presence_centre_heure ≤ K×24.
+  const heureFinDuJour = jourResolu * 24;
   let retours = 0;
   for (const [jid, j] of joueursCourants) {
-    if (j.blessure !== null && j.blessure.fin_presence_centre_jour <= jourResolu + 1) {
+    if (j.blessure !== null && j.blessure.fin_presence_centre_heure <= heureFinDuJour) {
       joueursCourants.set(jid, { ...j, blessure: null });
       retours++;
     }
@@ -341,21 +339,18 @@ export function avancerJour(entree: EntreeJour): SortieJour {
 // --- Helpers ---------------------------------------------------------------
 
 /**
- * `capacite` / `effectif_total_royaume` = Σ effectif_commande sur les
- * joueurs APTES AU COMBAT (le seuil de RULES §7 pour dimensionner la
- * horde). Un joueur encore inscrit au centre mais apte au combat compte,
- * puisqu'il tiendra le rempart.
+ * `effectif_total_royaume` = Σ effectif_commande sur TOUS les joueurs
+ * INSCRITS à la campagne, sans filtrer les blessés ni les en-transit.
  *
- * Approximation en l'absence de jour_courant : on considère blessure=null
- * comme apte. Toute blessure encore présente signifie soit inaptitude,
- * soit convalescence — dans les deux cas on retire (la convalescence
- * représente un joueur "affaibli" que la horde peut ne pas cibler). Choix
- * calibrable, à revisiter à la prochaine passe.
+ * RULES §7 : le volume de la horde ne doit dépendre que de la taille de la
+ * campagne, jamais de l'état momentané de la défense. Retirer les blessés
+ * ferait chuter le volume à chaque défaite locale, ce qui viole la règle
+ * « ne jamais s'adapter au succès (ou à l'échec) récent ». C'est la cause
+ * racine de l'oscillation 450↔198 observée avec le concentrateur.
  */
 function calculerCapacite(joueurs: ReadonlyMap<JoueurId, EtatJoueur>, config: Balance): number {
   let s = 0;
   for (const j of joueurs.values()) {
-    if (j.blessure !== null) continue;
     s += config.grades.effectif_commande[j.grade];
   }
   return s;

@@ -60,11 +60,12 @@ export function distribuerVersCibles(
   }
 
   // Joueurs disponibles : aptes au combat ET pas en transit.
+  const heureAssaut = (jour - 1) * 24 + 21;
   const dispos: EtatJoueur[] = [];
   for (const jid of mes_joueurs) {
     const j = etat.joueurs.get(jid);
     if (j === undefined) continue;
-    if (j.blessure !== null && j.blessure.retour_combat_jour > jour) continue;
+    if (j.blessure !== null && j.blessure.retour_combat_heure > heureAssaut) continue;
     if (j.transit !== null && j.transit.arrivee_jour > jour) continue;
     dispos.push(j);
   }

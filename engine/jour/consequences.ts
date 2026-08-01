@@ -67,9 +67,9 @@ export function calculerConsequences(
       if (j === undefined || j.blessure !== null) continue;
       nouvellesBlessures.set(jid, {
         severite,
-        // Dates remplies à l'étage supérieur (avancerJour connaît le jour).
-        retour_combat_jour: 0,
-        fin_presence_centre_jour: 0,
+        // Heures remplies à l'étage supérieur (avancerJour connaît le jour).
+        retour_combat_heure: 0,
+        fin_presence_centre_heure: 0,
       });
     }
   }

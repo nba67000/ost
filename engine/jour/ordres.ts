@@ -72,10 +72,11 @@ export function appliquerOrdres(
   }
 
   // Étape 2 : appliquer chaque ordre.
+  const heureAssautDuJour = (jour_courant - 1) * 24 + 21;
   for (const [jid, ordre] of ordres) {
     const j = joueurs.get(jid);
     if (j === undefined) continue;
-    if (j.blessure !== null && j.blessure.retour_combat_jour > jour_courant) continue;
+    if (j.blessure !== null && j.blessure.retour_combat_heure > heureAssautDuJour) continue;
     if (enTransit.has(jid)) continue;
     if (ordre.type === "aucun_ordre") continue;
     if (ordre.type === "affecter") {

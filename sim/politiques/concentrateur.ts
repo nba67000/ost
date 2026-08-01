@@ -52,10 +52,11 @@ export const concentrateur: Politique = ({ etat, mes_joueurs, jour, config }) =>
 
   // Joueurs disponibles = aptes au combat (non blessés OU retour_combat écoulé).
   const dispos: EtatJoueur[] = [];
+  const heureAssaut = (jour - 1) * 24 + 21;
   for (const jid of mes_joueurs) {
     const j = etat.joueurs.get(jid);
     if (j === undefined) continue;
-    if (j.blessure !== null && j.blessure.retour_combat_jour > jour) continue;
+    if (j.blessure !== null && j.blessure.retour_combat_heure > heureAssaut) continue;
     dispos.push(j);
   }
   const effTotal = dispos.reduce((s, j) => s + config.grades.effectif_commande[j.grade], 0);

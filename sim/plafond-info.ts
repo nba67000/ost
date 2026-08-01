@@ -31,6 +31,7 @@ function batch(pop: Population): {
       puissance_varhal: 1,
       duree_jours: DUREE,
       config,
+      placement_initial: "exposes",
     });
     const m = res.etat_final.metriques;
     if (m.jour_chute === null) tenues++;
